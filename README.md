@@ -1,5 +1,5 @@
 # PortIA_Core
-# Proyecto PortIA Web
+# Proyecto PortIA Core
 # Integrantes
   - Ignacio Andrade
   - Airon Saez
