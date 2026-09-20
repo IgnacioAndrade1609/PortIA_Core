@@ -11,6 +11,8 @@ builder.Services.AddHealthChecks();
 if (builder.Environment.IsDevelopment())
 {
     builder.Services.AddOpenApi();
+    builder.Services.AddEndpointsApiExplorer();
+    builder.Services.AddSwaggerGen();
 }
 
 var app = builder.Build();
@@ -20,6 +22,8 @@ app.UseHealthChecks("/health");
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 
 app.UseHttpsRedirection();
