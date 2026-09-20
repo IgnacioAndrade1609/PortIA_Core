@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\PortIA.Core.Services\PortIA.Core.Services.csproj" />
     <ProjectReference Include="..\PortIA.Core.Configuration\PortIA.Core.Configuration.csproj" />
+    <ProjectReference Include="..\PortIA.Core.Infrastructure.Data\PortIA.Core.Infrastructure.Data.csproj" />
   </ItemGroup>
 
   <ItemGroup>
