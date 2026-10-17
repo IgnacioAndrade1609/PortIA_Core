@@ -1,9 +1,5 @@
 namespace PortIA.Core.Services.Component.Mensajeria.Events;
 
-/// <summary>
-/// Publica: Agente Inspector. Consume: Core (RealStatusUpdatedConsumer).
-/// Contrato completo en PortIA_Agentes/EVENTOS.md.
-/// </summary>
 public record RealStatusUpdated(
     int ContainerId,
     string ContainerNumber,

@@ -1,9 +1,5 @@
 namespace PortIA.Core.Services.Component.Mensajeria.Events;
 
-/// <summary>
-/// Publica: Agente Lector. Consume: Core (DataExtractedConsumer).
-/// Contrato completo en PortIA_Agentes/EVENTOS.md. extraction_status: "OK" | "NEEDS_REVIEW" | "ERROR".
-/// </summary>
 public record DataExtracted(
     int ShipmentId,
     int DocumentId,

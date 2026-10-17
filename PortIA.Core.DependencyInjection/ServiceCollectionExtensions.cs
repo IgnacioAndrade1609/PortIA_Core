@@ -31,20 +31,12 @@ public static class ServiceCollectionExtensions
             {
                 cfg.Host(new Uri(rabbitMqUrl));
 
-                // Los eventos viajan en snake_case (contrato EVENTOS.md); las clases C#
-                // usan PascalCase. Esta política los traduce automáticamente al serializar.
                 cfg.ConfigureJsonSerializerOptions(options =>
                 {
                     options.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower;
                     return options;
                 });
 
-                // DataExtracted/RealStatusUpdated: el agente Python los publica directo a una
-                // cola nombrada (snake_case) vía el exchange por defecto de RabbitMQ
-                // (routing_key = nombre de cola, sin exchange propio). Por eso se fuerza acá
-                // el mismo formato de nombre ("data_extracted", "real_status_updated") en vez
-                // de dejar el default de MassTransit (kebab-case) — si no, el agente nunca
-                // encuentra la cola porque el nombre no calza.
                 cfg.ConfigureEndpoints(ctx, SnakeCaseEndpointNameFormatter.Instance);
             });
         });

@@ -35,10 +35,5 @@ public class DataExtractedConsumer(PortIACoreDbContext db) : IConsumer<DataExtra
             FechaOcurrencia = DateTimeOffset.UtcNow,
         });
         await db.SaveChangesAsync(context.CancellationToken);
-
-        // TODO: publicar InspectContainer. Pendiente de la decisión abierta #3 del
-        // CONTEXTO_MAESTRO: falta ID_TERMINAL en CONTAINER y definir quién lo asigna
-        // (¿lo extrae el Lector a partir del puerto de destino, o lo elige el usuario
-        // manualmente en el frontend?). Sin eso no hay terminal_code que publicar.
     }
 }

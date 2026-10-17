@@ -16,9 +16,6 @@ public class RealStatusUpdatedConsumer(PortIACoreDbContext db) : IConsumer<RealS
 
         if (container is null)
         {
-            // El contenedor no existe (evento llegó fuera de orden o con un ID inválido).
-            // No hay reintento posible con otro dato, así que se descarta explícitamente
-            // en vez de lanzar: lanzar mandaría el mensaje a la DLQ para un caso no recuperable.
             return;
         }
 
@@ -32,8 +29,5 @@ public class RealStatusUpdatedConsumer(PortIACoreDbContext db) : IConsumer<RealS
         }
 
         await db.SaveChangesAsync(context.CancellationToken);
-
-        // TODO: recalcular ID_RIESGO (semáforo) y crear ALERTA si corresponde — regla de
-        // negocio de la Capa 5 (sección 6 del CONTEXTO_MAESTRO), pendiente de su propia historia.
     }
 }
