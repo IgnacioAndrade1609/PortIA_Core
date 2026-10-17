@@ -1,4 +1,6 @@
+using Microsoft.EntityFrameworkCore;
 using PortIA.Core.DependencyInjection;
+using PortIA.Core.Infrastructure.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +18,12 @@ if (builder.Environment.IsDevelopment())
 }
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<PortIACoreDbContext>();
+    db.Database.Migrate();
+}
 
 app.UseHealthChecks("/health");
 

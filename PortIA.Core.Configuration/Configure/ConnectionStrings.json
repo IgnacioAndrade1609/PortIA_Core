@@ -1,4 +1,5 @@
 {
   "ConnectionStrings": {
+    "DefaultConnection": "Host=localhost;Port=5433;Database=portia_db;Username=portia;Password=portia123"
   }
 }
