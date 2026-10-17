@@ -291,9 +291,7 @@ namespace PortIA.Core.Infrastructure.Data.Migrations
                         .HasColumnName("DIAS_LIBRES_DETENTION");
 
                     b.Property<string>("EstadoPuerto")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("ESTADO_PUERTO");
+                        .HasColumnType("text");
 
                     b.Property<DateTimeOffset?>("FechaArriboReal")
                         .HasColumnType("timestamptz")
@@ -314,6 +312,10 @@ namespace PortIA.Core.Infrastructure.Data.Migrations
                     b.Property<int?>("IdClima")
                         .HasColumnType("integer")
                         .HasColumnName("ID_CLIMA");
+
+                    b.Property<int?>("IdEstado")
+                        .HasColumnType("integer")
+                        .HasColumnName("ID_ESTADO");
 
                     b.Property<int?>("IdNaviera")
                         .HasColumnType("integer")
@@ -373,6 +375,8 @@ namespace PortIA.Core.Infrastructure.Data.Migrations
                         .HasDatabaseName("IDX_CONTAINER_CARGA");
 
                     b.HasIndex("IdClima");
+
+                    b.HasIndex("IdEstado");
 
                     b.HasIndex("IdNaviera");
 
@@ -464,6 +468,133 @@ namespace PortIA.Core.Infrastructure.Data.Migrations
                     b.HasIndex("IdCargaDocumentos");
 
                     b.ToTable("DOCUMENTO", (string)null);
+                });
+
+            modelBuilder.Entity("PortIA.Core.Infrastructure.Data.Entities.EstadoContainer", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("ID_ESTADO");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Descripcion")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("DESCRIPCION");
+
+                    b.Property<bool>("Vigente")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("VIGENTE");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Descripcion")
+                        .IsUnique();
+
+                    b.ToTable("ESTADO_CONTAINER", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Descripcion = "PLANIFICADO",
+                            Vigente = true
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Descripcion = "EN_PATIO_ORIGEN",
+                            Vigente = true
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Descripcion = "EMBARCADO",
+                            Vigente = true
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Descripcion = "EN_TRANSITO",
+                            Vigente = true
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Descripcion = "ARRIBADO",
+                            Vigente = true
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Descripcion = "DESCARGADO",
+                            Vigente = true
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Descripcion = "EN_INSPECCION",
+                            Vigente = true
+                        },
+                        new
+                        {
+                            Id = 8,
+                            Descripcion = "LIBERADO",
+                            Vigente = true
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Descripcion = "DISPONIBLE_RETIRO",
+                            Vigente = true
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Descripcion = "RETIRADO",
+                            Vigente = true
+                        },
+                        new
+                        {
+                            Id = 11,
+                            Descripcion = "ENTREGADO_DESTINO",
+                            Vigente = true
+                        },
+                        new
+                        {
+                            Id = 12,
+                            Descripcion = "DEVUELTO_VACIO",
+                            Vigente = true
+                        },
+                        new
+                        {
+                            Id = 13,
+                            Descripcion = "DEMURRAGE",
+                            Vigente = true
+                        },
+                        new
+                        {
+                            Id = 14,
+                            Descripcion = "VENCIDO",
+                            Vigente = true
+                        },
+                        new
+                        {
+                            Id = 15,
+                            Descripcion = "RETENIDO",
+                            Vigente = true
+                        },
+                        new
+                        {
+                            Id = 16,
+                            Descripcion = "DANADO",
+                            Vigente = true
+                        });
                 });
 
             modelBuilder.Entity("PortIA.Core.Infrastructure.Data.Entities.Hito", b =>
@@ -776,12 +907,18 @@ namespace PortIA.Core.Infrastructure.Data.Migrations
                         new
                         {
                             Id = 1,
-                            NombreRol = "ComEx",
+                            NombreRol = "Analista",
                             Vigente = true
                         },
                         new
                         {
                             Id = 2,
+                            NombreRol = "Jefe",
+                            Vigente = true
+                        },
+                        new
+                        {
+                            Id = 3,
                             NombreRol = "Admin",
                             Vigente = true
                         });
@@ -936,7 +1073,7 @@ namespace PortIA.Core.Infrastructure.Data.Migrations
                         .HasForeignKey("IdContainer")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
-                        .HasConstraintName("FK_ALERTA_CONTAINER");
+                        .HasConstraintName("FK_ALERTA");
 
                     b.HasOne("PortIA.Core.Infrastructure.Data.Entities.Riesgo", "Riesgo")
                         .WithMany("Alertas")
@@ -997,6 +1134,12 @@ namespace PortIA.Core.Infrastructure.Data.Migrations
                         .HasForeignKey("IdClima")
                         .HasConstraintName("FK_CONTAINER_CLIMA");
 
+                    b.HasOne("PortIA.Core.Infrastructure.Data.Entities.EstadoContainer", "EstadoContainer")
+                        .WithMany("Containers")
+                        .HasForeignKey("IdEstado")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_CONTAINER_ESTADO");
+
                     b.HasOne("PortIA.Core.Infrastructure.Data.Entities.Naviera", "Naviera")
                         .WithMany("Containers")
                         .HasForeignKey("IdNaviera")
@@ -1024,6 +1167,8 @@ namespace PortIA.Core.Infrastructure.Data.Migrations
                     b.Navigation("CargaDocumentos");
 
                     b.Navigation("Clima");
+
+                    b.Navigation("EstadoContainer");
 
                     b.Navigation("Naviera");
 
@@ -1166,6 +1311,11 @@ namespace PortIA.Core.Infrastructure.Data.Migrations
                     b.Navigation("Alertas");
 
                     b.Navigation("Hitos");
+                });
+
+            modelBuilder.Entity("PortIA.Core.Infrastructure.Data.Entities.EstadoContainer", b =>
+                {
+                    b.Navigation("Containers");
                 });
 
             modelBuilder.Entity("PortIA.Core.Infrastructure.Data.Entities.Naviera", b =>

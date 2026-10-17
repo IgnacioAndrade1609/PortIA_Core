@@ -23,6 +23,8 @@ public class PortIACoreDbContext(DbContextOptions<PortIACoreDbContext> options) 
     public DbSet<LogNotificacion> LogsNotificacion => Set<LogNotificacion>();
     public DbSet<LogAuditoria> LogsAuditoria => Set<LogAuditoria>();
 
+    public DbSet<EstadoContainer> EstadosContainer => Set<EstadoContainer>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Rol>(e =>
@@ -173,7 +175,7 @@ public class PortIACoreDbContext(DbContextOptions<PortIACoreDbContext> options) 
             e.Property(x => x.DiasLibresDetention).HasColumnName("DIAS_LIBRES_DETENTION").HasDefaultValue(0);
             e.Property(x => x.FechaArriboReal).HasColumnName("FECHA_ARRIBO_REAL").HasColumnType("timestamptz");
             e.Property(x => x.FechaRetiroContainer).HasColumnName("FECHA_RETIRO_CONTAINER").HasColumnType("timestamptz");
-            e.Property(x => x.EstadoPuerto).HasColumnName("ESTADO_PUERTO").HasMaxLength(50);
+            e.Property(x => x.IdEstado).HasColumnName("ID_ESTADO");
             e.Property(x => x.IdClima).HasColumnName("ID_CLIMA");
             e.Property(x => x.DeadlineDemurrage).HasColumnName("DEADLINE_DEMURRAGE").HasColumnType("timestamptz");
             e.Property(x => x.DeadlineDetention).HasColumnName("DEADLINE_DETENTION").HasColumnType("timestamptz");
@@ -201,6 +203,11 @@ public class PortIACoreDbContext(DbContextOptions<PortIACoreDbContext> options) 
                 .HasConstraintName("FK_CONTAINER_TERMINAL_ORIGEN").OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.TerminalLlegada).WithMany(x => x.ContainersLlegada).HasForeignKey(x => x.IdTerminalLlegada)
                 .HasConstraintName("FK_CONTAINER_TERMINAL_LLEGADA").OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.EstadoContainer)
+            .WithMany(x => x.Containers)
+            .HasForeignKey(x => x.IdEstado)
+            .HasConstraintName("FK_CONTAINER_ESTADO")
+            .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Hito>(e =>
@@ -239,7 +246,7 @@ public class PortIACoreDbContext(DbContextOptions<PortIACoreDbContext> options) 
             e.HasIndex(x => x.Leida).HasDatabaseName("IDX_ALERTA_LEIDA");
 
             e.HasOne(x => x.Container).WithMany(x => x.Alertas).HasForeignKey(x => x.IdContainer)
-                .HasConstraintName("FK_ALERTA_CONTAINER");
+                .HasConstraintName("FK_ALERTA");
             e.HasOne(x => x.TipoAlerta).WithMany(x => x.Alertas).HasForeignKey(x => x.IdTipoAlerta)
                 .HasConstraintName("FK_ALERTA_TIPO");
             e.HasOne(x => x.Riesgo).WithMany(x => x.Alertas).HasForeignKey(x => x.IdRiesgo)
@@ -288,10 +295,19 @@ public class PortIACoreDbContext(DbContextOptions<PortIACoreDbContext> options) 
             e.HasOne(x => x.ResponsableUsuario).WithMany().HasForeignKey(x => x.Responsable)
                 .HasConstraintName("FK_AUDITORIA_USUARIO");
         });
+        modelBuilder.Entity<EstadoContainer>(e =>
+        {   
+            e.ToTable("ESTADO_CONTAINER");
+            e.Property(x => x.Id).HasColumnName("ID_ESTADO"); // Sin autoincremental (Identity)
+            e.Property(x => x.Descripcion).HasColumnName("DESCRIPCION").HasMaxLength(50).IsRequired();
+            e.Property(x => x.Vigente).HasColumnName("VIGENTE").HasDefaultValue(true);
+            e.HasIndex(x => x.Descripcion).IsUnique();
+        });
 
         modelBuilder.Entity<Rol>().HasData(
-            new Rol { Id = 1, NombreRol = "ComEx" },
-            new Rol { Id = 2, NombreRol = "Admin" });
+            new Rol { Id = 1, NombreRol = "Analista" },
+            new Rol { Id = 2, NombreRol = "Jefe" },
+            new Rol { Id = 3, NombreRol = "Admin" });
         modelBuilder.Entity<Pais>().HasData(
             new Pais { Id = 1, NombrePais = "Chile" });
         modelBuilder.Entity<Clima>().HasData(
@@ -313,5 +329,25 @@ public class PortIACoreDbContext(DbContextOptions<PortIACoreDbContext> options) 
         modelBuilder.Entity<Canal>().HasData(
             new Canal { Id = 1, Tipo = "EMAIL" },
             new Canal { Id = 2, Tipo = "TELEGRAM" });
+        modelBuilder.Entity<EstadoContainer>().HasData(
+            new EstadoContainer { Id = 1, Descripcion = "PLANIFICADO" },
+            new EstadoContainer { Id = 2, Descripcion = "EN_PATIO_ORIGEN" },
+            new EstadoContainer { Id = 3, Descripcion = "EMBARCADO" },
+            new EstadoContainer { Id = 4, Descripcion = "EN_TRANSITO" },
+            new EstadoContainer { Id = 5, Descripcion = "ARRIBADO" },
+            new EstadoContainer { Id = 6, Descripcion = "DESCARGADO" },
+            new EstadoContainer { Id = 7, Descripcion = "EN_INSPECCION" },
+            new EstadoContainer { Id = 8, Descripcion = "LIBERADO" },
+            new EstadoContainer { Id = 9, Descripcion = "DISPONIBLE_RETIRO" },
+            new EstadoContainer { Id = 10, Descripcion = "RETIRADO" },
+            new EstadoContainer { Id = 11, Descripcion = "ENTREGADO_DESTINO" },
+            new EstadoContainer { Id = 12, Descripcion = "DEVUELTO_VACIO" },
+            new EstadoContainer { Id = 13, Descripcion = "DEMURRAGE" },
+            new EstadoContainer { Id = 14, Descripcion = "VENCIDO" },
+            new EstadoContainer { Id = 15, Descripcion = "RETENIDO" },
+            new EstadoContainer { Id = 16, Descripcion = "DANADO" }
+
+        );
+        
     }
 }
