@@ -42,6 +42,24 @@ public class ContainersController(IContainerService containerService) : Controll
             fromDate,
             toDate,
             ct);
+    [HttpPost("{id:int}/inspect")]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Inspect(int id, CancellationToken ct)
+    {
+        var result = await containerService.TriggerInspectionAsync(id, ct);
+        return result.ToActionResult(this, Accepted);
+    }
+
+    [HttpGet("{id:int}/hitos")]
+    [ProducesResponseType(typeof(IReadOnlyList<HitoResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetHitos(int id, CancellationToken ct)
+    {
+        var userId = GetCurrentUserId();
+
+        var result = await containerService.GetHitosAsync(id, userId, ct);
 
         return result.ToActionResult(this, Ok);
     }
@@ -57,4 +75,5 @@ public class ContainersController(IContainerService containerService) : Controll
         var roleClaim = User?.FindFirst(ClaimTypes.Role) ?? User?.FindFirst("role");
         return roleClaim?.Value ?? "Admin";
     }
+}
 }

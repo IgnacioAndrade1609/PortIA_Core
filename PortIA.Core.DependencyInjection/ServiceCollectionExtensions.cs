@@ -8,6 +8,7 @@ using PortIA.Core.Services;
 using PortIA.Core.Services.Component.Containers.Interfaces;
 using PortIA.Core.Services.Component.Containers.Services;
 using PortIA.Core.Services.Component.Mensajeria.Consumers;
+using PortIA.Core.Services.Component.Mensajeria.Events;
 
 public static class ServiceCollectionExtensions
 {
@@ -45,6 +46,11 @@ public static class ServiceCollectionExtensions
                     options.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower;
                     return options;
                 });
+
+                cfg.UseRawJsonSerializer();
+
+                cfg.Message<InspectContainer>(m => m.SetEntityName("inspect_container"));
+                cfg.Publish<InspectContainer>(p => p.ExchangeType = "fanout");
 
                 cfg.ConfigureEndpoints(ctx, SnakeCaseEndpointNameFormatter.Instance);
             });

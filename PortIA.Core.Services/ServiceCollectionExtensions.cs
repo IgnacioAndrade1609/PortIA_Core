@@ -2,6 +2,10 @@ using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Minio;
+using PortIA.Core.Services.Component.Containers.Interfaces;
+using PortIA.Core.Services.Component.Containers.Services;
+using PortIA.Core.Services.Component.Mensajeria.Publishers;
+using PortIA.Core.Services.Component.Mensajeria.Publishers.Interfaces;
 using PortIA.Core.Services.Component.Shipments.Interfaces;
 using PortIA.Core.Services.Component.Shipments.Services;
 using PortIA.Core.Services.Component.Storage.Interfaces;
@@ -23,6 +27,8 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<IMinioStorageService, MinioStorageService>();
         services.AddScoped<IShipmentService, ShipmentService>();
+        services.AddScoped<IContainerService, ContainerService>();
+        services.AddScoped<IInspectContainerPublisher, InspectContainerPublisher>();
 
         services.AddValidatorsFromAssemblyContaining<ServicesAssemblyMarker>(ServiceLifetime.Scoped);
 
