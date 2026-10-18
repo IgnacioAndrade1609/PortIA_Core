@@ -1,11 +1,13 @@
+namespace PortIA.Core.DependencyInjection;
+
 using MassTransit;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using PortIA.Core.Infrastructure.Data;
 using PortIA.Core.Services;
+using PortIA.Core.Services.Component.Containers.Interfaces;
+using PortIA.Core.Services.Component.Containers.Services;
 using PortIA.Core.Services.Component.Mensajeria.Consumers;
-
-namespace PortIA.Core.DependencyInjection;
 
 public static class ServiceCollectionExtensions
 {
@@ -14,6 +16,13 @@ public static class ServiceCollectionExtensions
         services.AddServices(configuration);
         services.AddInfrastructureData(configuration);
         services.AddMessaging(configuration);
+        services.AddContainers();
+        return services;
+    }
+
+    private static IServiceCollection AddContainers(this IServiceCollection services)
+    {
+        services.AddScoped<IContainerService, ContainerService>();
         return services;
     }
 
