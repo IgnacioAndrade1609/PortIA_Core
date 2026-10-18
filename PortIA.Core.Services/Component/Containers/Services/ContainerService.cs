@@ -7,8 +7,11 @@ using PortIA.Core.Services.Common.Results;
 using PortIA.Core.Services.Component.Containers.DTOs;
 using PortIA.Core.Services.Component.Containers.Interfaces;
 using PortIA.Core.Services.Component.Containers.Mappers;
+using PortIA.Core.Services.Component.Mensajeria.Publishers.Interfaces;
 
-public class ContainerService(IUnitOfWork unitOfWork) : IContainerService
+public class ContainerService(
+    IUnitOfWork unitOfWork,
+    IInspectContainerPublisher inspectContainerPublisher) : IContainerService
 {
     public async Task<Result<List<ContainerSummaryResponse>>> GetContainersAsync(
         int userId,
@@ -36,7 +39,7 @@ public class ContainerService(IUnitOfWork unitOfWork) : IContainerService
         query = ApplyRoleBasedAccess(query, userId, userRole, assignedTo);
         query = ApplyFilters(query, search, riskLevel, shippingLineId, originTerminalId, destinationTerminalId, managed, needsReview, fromDate, toDate);
 
-var projections = await query
+        var projections = await query
             .Select(c => new ContainerSummaryProjection(
                 c.Id,
                 c.NumeroContainer,
@@ -54,9 +57,9 @@ var projections = await query
                 c.DiasLibresDetention,
                 c.DeadlineDemurrage,
                 c.DeadlineDetention,
-                c.Riesgo != null ? c.Riesgo.Descripcion : null, // Mapeado correctamente con Descripcion
-                false, // NeedsReview (valor por defecto o ajusta según tu lógica)
-                false, // Managed (valor por defecto o ajusta según tu lógica)
+                c.Riesgo != null ? c.Riesgo.Descripcion : null,
+                false,
+                false,
                 c.EstadoPuerto,
                 c.AsignadoA,
                 c.Asignado != null ? c.Asignado.NombreUsuario : null,
@@ -67,6 +70,26 @@ var projections = await query
         var response = projections.Select(p => p.ToSummaryResponse()).ToList();
 
         return Result<List<ContainerSummaryResponse>>.Success(response);
+    }
+
+    public Task<Result> TriggerInspectionAsync(int containerId, CancellationToken ct) =>
+        inspectContainerPublisher.PublishAsync(containerId, ct);
+
+    public async Task<Result<IReadOnlyList<HitoResponse>>> GetHitosAsync(int containerId, int userId, CancellationToken ct)
+    {
+        var container = await unitOfWork.Containers.GetByIdAsync(containerId, ct);
+
+        if (container is null || container.AsignadoA != userId)
+            return Result<IReadOnlyList<HitoResponse>>.NotFound($"El contenedor {containerId} no existe o no pertenece al usuario.");
+
+        var hitos = await unitOfWork.Containers.Query()
+            .Where(c => c.Id == containerId)
+            .SelectMany(c => c.Hitos)
+            .OrderBy(h => h.FechaOcurrencia)
+            .ToListAsync(ct);
+
+        return Result<IReadOnlyList<HitoResponse>>.Success(
+            hitos.Select(h => h.ToResponse()).ToList());
     }
 
     private static IQueryable<Container> ApplyRoleBasedAccess(
@@ -110,8 +133,8 @@ var projections = await query
     {
         if (!string.IsNullOrWhiteSpace(search))
         {
-            query = query.Where(c => 
-                c.NumeroContainer.Contains(search) || 
+            query = query.Where(c =>
+                c.NumeroContainer.Contains(search) ||
                 (c.NumeroBl != null && c.NumeroBl.Contains(search)) ||
                 (c.NombreForwarder != null && c.NombreForwarder.Contains(search)));
         }
@@ -143,31 +166,5 @@ var projections = await query
             query = query.Where(c => c.CreateAt <= toUtc);
         }
         return query;
-    }
-}
-using PortIA.Core.Services.Component.Mensajeria.Publishers.Interfaces;
-
-public class ContainerService(
-    IUnitOfWork unitOfWork,
-    IInspectContainerPublisher inspectContainerPublisher) : IContainerService
-{
-    public Task<Result> TriggerInspectionAsync(int containerId, CancellationToken ct) =>
-        inspectContainerPublisher.PublishAsync(containerId, ct);
-
-    public async Task<Result<IReadOnlyList<HitoResponse>>> GetHitosAsync(int containerId, int userId, CancellationToken ct)
-    {
-        var container = await unitOfWork.Containers.GetByIdAsync(containerId, ct);
-
-        if (container is null || container.AsignadoA != userId)
-            return Result<IReadOnlyList<HitoResponse>>.NotFound($"El contenedor {containerId} no existe o no pertenece al usuario.");
-
-        var hitos = await unitOfWork.Containers.Query()
-            .Where(c => c.Id == containerId)
-            .SelectMany(c => c.Hitos)
-            .OrderBy(h => h.FechaOcurrencia)
-            .ToListAsync(ct);
-
-        return Result<IReadOnlyList<HitoResponse>>.Success(
-            hitos.Select(h => h.ToResponse()).ToList());
     }
 }
