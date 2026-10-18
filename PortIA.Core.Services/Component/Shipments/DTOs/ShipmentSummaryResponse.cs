@@ -1,6 +1,6 @@
 namespace PortIA.Core.Services.Component.Shipments.DTOs;
 
-public record ShipmentSummaryDto(
+public record ShipmentSummaryResponse(
     int Id,
     string Status,
     int DocumentCount,

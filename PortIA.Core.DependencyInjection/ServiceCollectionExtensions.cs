@@ -11,7 +11,7 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddAll(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddServices();
+        services.AddServices(configuration);
         services.AddInfrastructureData(configuration);
         services.AddMessaging(configuration);
         return services;

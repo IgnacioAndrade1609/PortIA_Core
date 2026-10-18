@@ -3,8 +3,10 @@ namespace PortIA.Core.WebApi.Controllers;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using PortIA.Core.Services.Common.DTOs;
+using PortIA.Core.Services.Common.Results;
 using PortIA.Core.Services.Component.Shipments.DTOs;
 using PortIA.Core.Services.Component.Shipments.Interfaces;
+using PortIA.Core.WebApi.Extensions;
 
 [ApiController]
 [Route("api/v1/shipments")]
@@ -12,44 +14,29 @@ public class ShipmentsController(IShipmentService shipmentService) : ControllerB
 {
     [HttpPost]
     [Consumes("multipart/form-data")]
-    [ProducesResponseType(typeof(ShipmentCreatedResponseDto), StatusCodes.Status202Accepted)]
+    [ProducesResponseType(typeof(ShipmentCreatedResponse), StatusCodes.Status202Accepted)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> CreateShipment(IFormFile file, CancellationToken ct)
     {
-        if (file is null || file.Length == 0)
-        {
-            return BadRequest(new { title = "Error de Validación", detail = "Falta el archivo adjunto.", status = 400 });
-        }
+        if (IsFileMissing(file))
+            return Problem(detail: "Falta el archivo adjunto.", statusCode: StatusCodes.Status400BadRequest, title: "Error de validación");
 
-        try
-        {
-            var userId = GetCurrentUserId();
+        var result = await CreateShipmentFromFileAsync(file, ct);
+        return result.ToActionResult(this, response => Accepted(response));
+    }
 
-            await using var stream = file.OpenReadStream();
+    private static bool IsFileMissing(IFormFile? file) => file is null || file.Length == 0;
 
-            var result = await shipmentService.CreateShipmentAsync(
-                stream,
-                file.FileName,
-                file.ContentType,
-                file.Length,
-                userId,
-                ct);
-
-            return Accepted(result);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Conflict(new { title = "Documento Duplicado", detail = ex.Message, status = 409 });
-        }
-        catch (Exception ex) when (ex is ArgumentException or ArgumentOutOfRangeException or NotSupportedException)
-        {
-            return BadRequest(new { title = "Error de Validación", detail = ex.Message, status = 400 });
-        }
+    private async Task<Result<ShipmentCreatedResponse>> CreateShipmentFromFileAsync(IFormFile file, CancellationToken ct)
+    {
+        var userId = GetCurrentUserId();
+        await using var stream = file.OpenReadStream();
+        return await shipmentService.CreateShipmentAsync(stream, file.FileName, file.ContentType, file.Length, userId, ct);
     }
 
     [HttpGet]
-    [ProducesResponseType(typeof(PagedResult<ShipmentSummaryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedResult<ShipmentSummaryResponse>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetShipments(
         [FromQuery] string? status,
         [FromQuery] int page = 1,
@@ -67,11 +54,11 @@ public class ShipmentsController(IShipmentService shipmentService) : ControllerB
             sort,
             ct);
 
-        return Ok(result);
+        return result.ToActionResult(this, Ok);
     }
 
     [HttpGet("{id:int}")]
-    [ProducesResponseType(typeof(ShipmentDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ShipmentDetailResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetShipmentById(int id, CancellationToken ct)
     {
@@ -79,21 +66,12 @@ public class ShipmentsController(IShipmentService shipmentService) : ControllerB
 
         var result = await shipmentService.GetShipmentByIdAsync(id, userId, ct);
 
-        if (result is null)
-        {
-            return NotFound(new { title = "No encontrado", detail = "La carga no existe o no pertenece al usuario.", status = 404 });
-        }
-
-        return Ok(result);
+        return result.ToActionResult(this, Ok);
     }
 
     private int GetCurrentUserId()
     {
-        var claim = User?.FindFirst(ClaimTypes.NameIdentifier) ?? User?.FindFirst("sub");
-        if (claim != null && int.TryParse(claim.Value, out var id))
-        {
-            return id;
-        }
-        return 1;
+        var userIdClaim = User?.FindFirst(ClaimTypes.NameIdentifier) ?? User?.FindFirst("sub");
+        return userIdClaim is not null && int.TryParse(userIdClaim.Value, out var userId) ? userId : 1;
     }
 }

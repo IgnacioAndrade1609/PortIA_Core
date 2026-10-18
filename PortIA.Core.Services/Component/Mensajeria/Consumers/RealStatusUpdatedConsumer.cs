@@ -1,18 +1,16 @@
 using MassTransit;
-using Microsoft.EntityFrameworkCore;
-using PortIA.Core.Infrastructure.Data;
+using PortIA.Core.Infrastructure.Data.UnitOfWork;
 using PortIA.Core.Services.Component.Mensajeria.Events;
 
 namespace PortIA.Core.Services.Component.Mensajeria.Consumers;
 
-public class RealStatusUpdatedConsumer(PortIACoreDbContext db) : IConsumer<RealStatusUpdated>
+public class RealStatusUpdatedConsumer(IUnitOfWork unitOfWork) : IConsumer<RealStatusUpdated>
 {
     public async Task Consume(ConsumeContext<RealStatusUpdated> context)
     {
         var evento = context.Message;
 
-        var container = await db.Containers
-            .FirstOrDefaultAsync(c => c.Id == evento.ContainerId, context.CancellationToken);
+        var container = await unitOfWork.Containers.GetByIdAsync(evento.ContainerId, context.CancellationToken);
 
         if (container is null)
         {
@@ -28,6 +26,6 @@ public class RealStatusUpdatedConsumer(PortIACoreDbContext db) : IConsumer<RealS
             container.DeadlineDemurrage = evento.RealArrivalDate.Value.AddDays(container.DiasLibresDemurrage);
         }
 
-        await db.SaveChangesAsync(context.CancellationToken);
+        await unitOfWork.SaveChangesAsync(context.CancellationToken);
     }
 }

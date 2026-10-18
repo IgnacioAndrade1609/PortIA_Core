@@ -1,11 +1,11 @@
 using MassTransit;
-using PortIA.Core.Infrastructure.Data;
 using PortIA.Core.Infrastructure.Data.Entities;
+using PortIA.Core.Infrastructure.Data.UnitOfWork;
 using PortIA.Core.Services.Component.Mensajeria.Events;
 
 namespace PortIA.Core.Services.Component.Mensajeria.Consumers;
 
-public class DataExtractedConsumer(PortIACoreDbContext db) : IConsumer<DataExtracted>
+public class DataExtractedConsumer(IUnitOfWork unitOfWork) : IConsumer<DataExtracted>
 {
     public async Task Consume(ConsumeContext<DataExtracted> context)
     {
@@ -23,17 +23,17 @@ public class DataExtractedConsumer(PortIACoreDbContext db) : IConsumer<DataExtra
             DiasLibresDetention = evento.DetentionFreeDays ?? 0,
         };
 
-        db.Containers.Add(container);
-        await db.SaveChangesAsync(context.CancellationToken);
+        await unitOfWork.Containers.AddAsync(container, context.CancellationToken);
+        await unitOfWork.SaveChangesAsync(context.CancellationToken);
 
-        db.Hitos.Add(new Hito
+        await unitOfWork.Hitos.AddAsync(new Hito
         {
             IdContainer = container.Id,
             Descripcion = $"Datos extraídos por IA (confianza {evento.Confidence:0.00}, estado {evento.ExtractionStatus})",
             Origen = "IA",
             CreadoPor = null,
             FechaOcurrencia = DateTimeOffset.UtcNow,
-        });
-        await db.SaveChangesAsync(context.CancellationToken);
+        }, context.CancellationToken);
+        await unitOfWork.SaveChangesAsync(context.CancellationToken);
     }
 }

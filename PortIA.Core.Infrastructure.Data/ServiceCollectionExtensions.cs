@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using UnitOfWorkNs = PortIA.Core.Infrastructure.Data.UnitOfWork;
 
 namespace PortIA.Core.Infrastructure.Data;
 
@@ -12,6 +13,7 @@ public static class ServiceCollectionExtensions
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
         services.AddDbContext<PortIACoreDbContext>(options => options.UseNpgsql(connectionString));
+        services.AddScoped<UnitOfWorkNs.IUnitOfWork, UnitOfWorkNs.UnitOfWork>();
 
         return services;
     }

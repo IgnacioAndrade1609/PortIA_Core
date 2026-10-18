@@ -1,11 +1,12 @@
 namespace PortIA.Core.Services.Component.Shipments.Interfaces;
 
 using PortIA.Core.Services.Common.DTOs;
+using PortIA.Core.Services.Common.Results;
 using PortIA.Core.Services.Component.Shipments.DTOs;
 
 public interface IShipmentService
 {
-    Task<ShipmentCreatedResponseDto> CreateShipmentAsync(
+    Task<Result<ShipmentCreatedResponse>> CreateShipmentAsync(
         Stream fileStream,
         string fileName,
         string contentType,
@@ -13,7 +14,7 @@ public interface IShipmentService
         int userId,
         CancellationToken ct);
 
-    Task<PagedResult<ShipmentSummaryDto>> GetShipmentsAsync(
+    Task<Result<PagedResult<ShipmentSummaryResponse>>> GetShipmentsAsync(
         int userId,
         string? status,
         int page,
@@ -21,5 +22,5 @@ public interface IShipmentService
         string? sort,
         CancellationToken ct);
 
-    Task<ShipmentDetailDto?> GetShipmentByIdAsync(int id, int userId, CancellationToken ct);
+    Task<Result<ShipmentDetailResponse>> GetShipmentByIdAsync(int id, int userId, CancellationToken ct);
 }

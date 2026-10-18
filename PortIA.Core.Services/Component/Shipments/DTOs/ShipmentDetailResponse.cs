@@ -1,13 +1,13 @@
 namespace PortIA.Core.Services.Component.Shipments.DTOs;
 
-public record ShipmentDetailDto(
+public record ShipmentDetailResponse(
     int Id,
     string Status,
-    IReadOnlyList<DocumentDetailDto> Documents,
+    IReadOnlyList<DocumentDetailResponse> Documents,
     IReadOnlyList<object> Containers
 );
 
-public record DocumentDetailDto(
+public record DocumentDetailResponse(
     int Id,
     string Type,
     string FileName,
