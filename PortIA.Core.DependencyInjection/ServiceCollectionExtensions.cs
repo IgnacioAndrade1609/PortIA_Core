@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using PortIA.Core.Infrastructure.Data;
 using PortIA.Core.Services;
 using PortIA.Core.Services.Component.Mensajeria.Consumers;
+using PortIA.Core.Services.Component.Mensajeria.Events;
 
 namespace PortIA.Core.DependencyInjection;
 
@@ -11,7 +12,7 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddAll(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddServices();
+        services.AddServices(configuration);
         services.AddInfrastructureData(configuration);
         services.AddMessaging(configuration);
         return services;
@@ -36,6 +37,11 @@ public static class ServiceCollectionExtensions
                     options.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower;
                     return options;
                 });
+
+                cfg.UseRawJsonSerializer();
+
+                cfg.Message<InspectContainer>(m => m.SetEntityName("inspect_container"));
+                cfg.Publish<InspectContainer>(p => p.ExchangeType = "fanout");
 
                 cfg.ConfigureEndpoints(ctx, SnakeCaseEndpointNameFormatter.Instance);
             });

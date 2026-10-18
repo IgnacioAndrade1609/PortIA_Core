@@ -3,6 +3,11 @@
 ##
 ## Get latest from `dotnet new gitignore`
 
+# Secrets / configuración local con credenciales reales (Postgres, MinIO, RabbitMQ).
+# Usar AppSettings.Example.json / ConnectionStrings.Example.json como plantilla.
+PortIA.Core.Configuration/Configure/AppSettings.json
+PortIA.Core.Configuration/Configure/ConnectionStrings.json
+
 # dotenv files
 .env
 
