@@ -32,6 +32,12 @@ public static class ContainerMapper
             PortStatus: projection.EstadoPuerto,
             AssignedTo: projection.AsignadoA.HasValue 
                 ? new AssignedToDto(projection.AsignadoA.Value, projection.AsignadoANombre ?? "N/A") 
+                : null,
+            OriginTerminal: projection.IdTerminalOrigen.HasValue
+                ? new TerminalDto(projection.IdTerminalOrigen.Value, projection.TerminalOrigenNombre ?? "N/A")
+                : null,
+            DestinationTerminal: projection.IdTerminalLlegada.HasValue
+                ? new TerminalDto(projection.IdTerminalLlegada.Value, projection.TerminalLlegadaNombre ?? "N/A")
                 : null
         );
     }

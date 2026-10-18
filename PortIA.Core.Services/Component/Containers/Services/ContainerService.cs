@@ -25,18 +25,28 @@ public class ContainerService(IUnitOfWork unitOfWork) : IContainerService
         DateTime? toDate,
         CancellationToken ct)
     {
-        var query = unitOfWork.Containers.Query().Where(c => c.Vigente);
+        var query = unitOfWork.Containers.Query()
+            .Include(c => c.Naviera)
+            .Include(c => c.TerminalOrigen)
+            .Include(c => c.TerminalLlegada)
+            .Include(c => c.Asignado)
+            .Include(c => c.Riesgo)
+            .Where(c => c.Vigente);
 
         query = ApplyRoleBasedAccess(query, userId, userRole, assignedTo);
         query = ApplyFilters(query, search, riskLevel, shippingLineId, originTerminalId, destinationTerminalId, managed, needsReview, fromDate, toDate);
 
-        var projections = await query
+var projections = await query
             .Select(c => new ContainerSummaryProjection(
                 c.Id,
                 c.NumeroContainer,
                 c.NumeroBl,
                 c.IdNaviera,
-                null,
+                c.Naviera != null ? c.Naviera.NombreNaviera : null,
+                c.IdTerminalOrigen,
+                c.TerminalOrigen != null ? c.TerminalOrigen.NombreTerminal : null,
+                c.IdTerminalLlegada,
+                c.TerminalLlegada != null ? c.TerminalLlegada.NombreTerminal : null,
                 c.FechaLlegadaEstimada,
                 c.FechaArriboReal,
                 c.FechaRetiroContainer,
@@ -44,12 +54,12 @@ public class ContainerService(IUnitOfWork unitOfWork) : IContainerService
                 c.DiasLibresDetention,
                 c.DeadlineDemurrage,
                 c.DeadlineDetention,
-                null,
-                false,
-                false,
+                c.Riesgo != null ? c.Riesgo.Descripcion : null, // Mapeado correctamente con Descripcion
+                false, // NeedsReview (valor por defecto o ajusta según tu lógica)
+                false, // Managed (valor por defecto o ajusta según tu lógica)
                 c.EstadoPuerto,
                 c.AsignadoA,
-                null,
+                c.Asignado != null ? c.Asignado.NombreUsuario : null,
                 c.CreateAt
             ))
             .ToListAsync(ct);

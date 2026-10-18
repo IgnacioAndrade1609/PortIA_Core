@@ -17,6 +17,16 @@ if (builder.Environment.IsDevelopment())
     builder.Services.AddSwaggerGen();
 }
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:4200", "http://localhost:5173", "http://localhost:3000") // Añade los puertos comunes de Angular/Vite
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
@@ -24,6 +34,8 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<PortIACoreDbContext>();
     db.Database.Migrate();
 }
+
+
 
 app.UseHealthChecks("/health");
 
@@ -33,6 +45,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+app.UseCors("AllowFrontend");
 
 app.UseHttpsRedirection();
 
