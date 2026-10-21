@@ -42,6 +42,10 @@ public class ContainersController(IContainerService containerService) : Controll
             fromDate,
             toDate,
             ct);
+
+        return result.ToActionResult(this, Ok);
+    }
+
     [HttpPost("{id:int}/inspect")]
     [ProducesResponseType(StatusCodes.Status202Accepted)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -75,5 +79,4 @@ public class ContainersController(IContainerService containerService) : Controll
         var roleClaim = User?.FindFirst(ClaimTypes.Role) ?? User?.FindFirst("role");
         return roleClaim?.Value ?? "Admin";
     }
-}
 }
