@@ -167,4 +167,88 @@ public class ContainerService(
         }
         return query;
     }
+        public async Task<Result<ContainerSummaryMetricsResponse>> GetContainersSummaryAsync(
+        int userId,
+        string userRole,
+        int? shippingLineId,
+        int? originTerminalId,
+        int? destinationTerminalId,
+        int? assignedTo,
+        CancellationToken ct)
+    {
+        var query = unitOfWork.Containers.Query()
+            .Include(c => c.Riesgo)
+            .Where(c => c.Vigente);
+
+        query = ApplyRoleBasedAccess(query, userId, userRole, assignedTo);
+
+        if (shippingLineId.HasValue)
+            query = query.Where(c => c.IdNaviera == shippingLineId.Value);
+
+        if (originTerminalId.HasValue)
+            query = query.Where(c => c.IdTerminalOrigen == originTerminalId.Value);
+
+        if (destinationTerminalId.HasValue)
+            query = query.Where(c => c.IdTerminalLlegada == destinationTerminalId.Value);
+
+        var rawContainers = await query
+            .Select(c => new
+            {
+                c.Id,
+                c.NumeroContainer,
+                RiskLevel = c.Riesgo != null ? c.Riesgo.Descripcion : "OK",
+                c.DeadlineDemurrage,
+                c.DeadlineDetention
+                
+            })
+            .ToListAsync(ct);
+
+        int total = rawContainers.Count;
+        int countOk = rawContainers.Count(c => c.RiskLevel.Equals("OK", StringComparison.OrdinalIgnoreCase));
+        int countWarning = rawContainers.Count(c => c.RiskLevel.Equals("WARNING", StringComparison.OrdinalIgnoreCase));
+        int countCritical = rawContainers.Count(c => c.RiskLevel.Equals("CRITICAL", StringComparison.OrdinalIgnoreCase));
+        int countOverdue = rawContainers.Count(c => c.RiskLevel.Equals("OVERDUE", StringComparison.OrdinalIgnoreCase));
+
+        var byRisk = new RiskSummaryDto(countOk, countWarning, countCritical, countOverdue);
+
+        var nowUtc = DateTimeOffset.UtcNow;
+        var deadlinesList = new List<NextDeadlineDto>();
+
+        foreach (var item in rawContainers)
+        {
+            if (item.DeadlineDemurrage.HasValue && item.DeadlineDemurrage.Value >= nowUtc)
+            {
+                deadlinesList.Add(new NextDeadlineDto(
+                    item.Id,
+                    item.NumeroContainer,
+                    "DEMURRAGE",
+                    item.DeadlineDemurrage.Value.UtcDateTime));
+            }
+
+            if (item.DeadlineDetention.HasValue && item.DeadlineDetention.Value >= nowUtc)
+            {
+                deadlinesList.Add(new NextDeadlineDto(
+                    item.Id,
+                    item.NumeroContainer,
+                    "DETENTION",
+                    item.DeadlineDetention.Value.UtcDateTime));
+            }
+        }
+
+        var nextDeadlines = deadlinesList
+            .OrderBy(d => d.Deadline)
+            .Take(5)
+            .ToList();
+
+        var response = new ContainerSummaryMetricsResponse(
+            Total: total,
+            ByRisk: byRisk,
+            NeedsReview: 0, // Ajustar cuando esté la lógica de revisión en BD/Entidad
+            Unmanaged: 0,   // Ajustar cuando la columna GESTIONADO esté creada en BD
+            NextDeadlines: nextDeadlines
+        );
+
+        return Result<ContainerSummaryMetricsResponse>.Success(response);
+    }
 }
+

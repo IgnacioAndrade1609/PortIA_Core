@@ -23,4 +23,13 @@ public interface IContainerService
     Task<Result> TriggerInspectionAsync(int containerId, CancellationToken ct);
 
     Task<Result<IReadOnlyList<HitoResponse>>> GetHitosAsync(int containerId, int userId, CancellationToken ct);
+
+    Task<Result<ContainerSummaryMetricsResponse>> GetContainersSummaryAsync(
+        int userId,
+        string userRole,
+        int? shippingLineId,
+        int? originTerminalId,
+        int? destinationTerminalId,
+        int? assignedTo,
+        CancellationToken ct);
 }

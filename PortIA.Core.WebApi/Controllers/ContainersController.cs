@@ -79,4 +79,27 @@ public class ContainersController(IContainerService containerService) : Controll
         var roleClaim = User?.FindFirst(ClaimTypes.Role) ?? User?.FindFirst("role");
         return roleClaim?.Value ?? "Admin";
     }
+    [HttpGet("summary")]
+    [ProducesResponseType(typeof(ContainerSummaryMetricsResponse), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetContainersSummary(
+        [FromQuery] int? shippingLineId,
+        [FromQuery] int? originTerminalId,
+        [FromQuery] int? destinationTerminalId,
+        [FromQuery] int? assignedTo,
+        CancellationToken ct = default)
+    {
+        var userId = GetCurrentUserId();
+        var userRole = GetCurrentUserRole();
+
+        var result = await containerService.GetContainersSummaryAsync(
+            userId,
+            userRole,
+            shippingLineId,
+            originTerminalId,
+            destinationTerminalId,
+            assignedTo,
+            ct);
+
+        return result.ToActionResult(this, Ok);
+    }
 }
