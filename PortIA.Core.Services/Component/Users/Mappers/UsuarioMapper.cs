@@ -14,12 +14,24 @@ public static class UsuarioMapper
         Vigente = true
     };
 
-    public static UsuarioResponse ToResponse(this Usuario usuario) => new(
-        usuario.Id,
-        usuario.NombreUsuario,
-        usuario.Email,
-        usuario.Rol.NombreRol,
-        usuario.Vigente,
-        usuario.Creacion
-    );
+    public static UserDto ToDto(this Usuario usuario) => new()
+    {
+        Id = usuario.Id,
+        Name = usuario.NombreUsuario,
+        Email = usuario.Email,
+        Role = new RoleSummaryDto
+        {
+            Id = usuario.Rol.Id,
+            Name = usuario.Rol.NombreRol
+        },
+        Active = usuario.Vigente,
+        CreatedAt = usuario.Creacion
+    };
+
+    public static RoleDto ToDto(this Rol rol) => new()
+    {
+        Id = rol.Id,
+        Name = rol.NombreRol,
+        Active = rol.Vigente
+    };
 }

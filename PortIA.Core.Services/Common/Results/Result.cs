@@ -6,7 +6,8 @@ public enum ResultStatus
     ValidationError,
     NotFound,
     BusinessError,
-    Unauthorized
+    Unauthorized,
+    Conflict
 }
 
 public class Result
@@ -31,6 +32,8 @@ public class Result
     public static Result BusinessError(string message) => new(ResultStatus.BusinessError, message, null);
 
     public static Result Unauthorized(string message) => new(ResultStatus.Unauthorized, message, null);
+
+    public static Result Conflict(string message) => new(ResultStatus.Conflict, message, null);
 
     public static Result ValidationError(IDictionary<string, string[]> errors) =>
         new(ResultStatus.ValidationError, null, errors);
@@ -75,6 +78,10 @@ public class Result<T>
 
     public static Result<T> Unauthorized(string message) => new(ResultStatus.Unauthorized, message, null);
 
+    public static Result<T> Conflict(string message) => new(ResultStatus.Conflict, message, null);
+
     public static Result<T> ValidationError(IDictionary<string, string[]> errors) =>
         new(ResultStatus.ValidationError, null, errors);
+    
+    
 }
