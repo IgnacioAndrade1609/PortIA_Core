@@ -1,6 +1,6 @@
-using Microsoft.EntityFrameworkCore;
 using PortIA.Core.DependencyInjection;
 using PortIA.Core.Infrastructure.Data;
+using PortIA.Core.WebApi.ErrorHandling;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,6 +9,9 @@ builder.Services.AddAll(builder.Configuration);
 
 builder.Services.AddControllers();
 builder.Services.AddHealthChecks();
+
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
 
 if (builder.Environment.IsDevelopment())
 {
@@ -29,13 +32,9 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<PortIACoreDbContext>();
-    db.Database.Migrate();
-}
+app.ApplyPendingMigrations();
 
-
+app.UseExceptionHandler();
 
 app.UseHealthChecks("/health");
 
@@ -50,6 +49,7 @@ app.UseCors("AllowFrontend");
 
 app.UseHttpsRedirection();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

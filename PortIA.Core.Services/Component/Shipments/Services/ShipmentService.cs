@@ -3,6 +3,7 @@ namespace PortIA.Core.Services.Component.Shipments.Services;
 using System.Security.Cryptography;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using PortIA.Core.Infrastructure.Data.Entities;
 using PortIA.Core.Infrastructure.Data.UnitOfWork;
 using PortIA.Core.Services.Common.DTOs;
@@ -10,12 +11,13 @@ using PortIA.Core.Services.Common.Results;
 using PortIA.Core.Services.Component.Shipments.DTOs;
 using PortIA.Core.Services.Component.Shipments.Interfaces;
 using PortIA.Core.Services.Component.Shipments.Mappers;
-using PortIA.Core.Services.Component.Storage.Interfaces;
+using PortIA.Core.ExternalServices.Component.Storage.Interfaces;
 
 public class ShipmentService(
     IUnitOfWork unitOfWork,
-    IMinioStorageService minioService,
-    IValidator<CreateShipmentRequest> createShipmentValidator) : IShipmentService
+    IMinioStorageClient minioService,
+    IValidator<CreateShipmentRequest> createShipmentValidator,
+    ILogger<ShipmentService> logger) : IShipmentService
 {
     private const int DefaultPageSize = 20;
     private const int MaxPageSize = 100;
@@ -113,10 +115,15 @@ public class ShipmentService(
     {
         var existingDocumentWithSameHash = await unitOfWork.Documentos.GetByHashAsync(documentHash, ct);
 
-        return existingDocumentWithSameHash is null
-            ? null
-            : Result<ShipmentCreatedResponse>.BusinessError(
-                $"El documento ya fue subido previamente en la carga #{existingDocumentWithSameHash.IdCargaDocumentos}.");
+        if (existingDocumentWithSameHash is null)
+            return null;
+
+        logger.LogWarning(
+            "CreateShipment rechazado: documento duplicado (hash={DocumentHash}, cargaExistente={CargaId})",
+            documentHash, existingDocumentWithSameHash.IdCargaDocumentos);
+
+        return Result<ShipmentCreatedResponse>.BusinessError(
+            $"El documento ya fue subido previamente en la carga #{existingDocumentWithSameHash.IdCargaDocumentos}.");
     }
 
     private async Task<Result<ShipmentCreatedResponse>> PersistShipmentAsync(
@@ -132,10 +139,17 @@ public class ShipmentService(
             await unitOfWork.Documentos.AddAsync(documento, ct);
             await unitOfWork.SaveChangesAsync(ct);
 
+            logger.LogInformation(
+                "Shipment creado (cargaId={CargaId}, documentoId={DocumentoId}, userId={UserId})",
+                cargaDocumentos.Id, documento.Id, userId);
+
             return Result<ShipmentCreatedResponse>.Success(cargaDocumentos.ToCreatedResponse(documento));
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            logger.LogError(ex,
+                "Fallo al persistir shipment (userId={UserId}, storagePath={StoragePath}); se revierte el archivo subido",
+                userId, storagePath);
             await minioService.RemoveFileAsync(storagePath, ct);
             throw;
         }

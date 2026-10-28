@@ -4,10 +4,12 @@
     <ProjectReference Include="..\PortIA.Core.Services\PortIA.Core.Services.csproj" />
     <ProjectReference Include="..\PortIA.Core.Configuration\PortIA.Core.Configuration.csproj" />
     <ProjectReference Include="..\PortIA.Core.Infrastructure.Data\PortIA.Core.Infrastructure.Data.csproj" />
+    <ProjectReference Include="..\PortIA.Core.ExternalServices\PortIA.Core.ExternalServices.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="MassTransit.RabbitMQ" Version="8.5.2" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.12" />

@@ -17,22 +17,23 @@ public class ShipmentsController(IShipmentService shipmentService) : ControllerB
     [ProducesResponseType(typeof(ShipmentCreatedResponse), StatusCodes.Status202Accepted)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> CreateShipment(IFormFile file, CancellationToken ct)
+    public async Task<IActionResult> CreateShipment(IFormFile? file, CancellationToken ct)
     {
-        if (IsFileMissing(file))
-            return Problem(detail: "Falta el archivo adjunto.", statusCode: StatusCodes.Status400BadRequest, title: "Error de validación");
-
         var result = await CreateShipmentFromFileAsync(file, ct);
         return result.ToActionResult(this, response => Accepted(response));
     }
 
-    private static bool IsFileMissing(IFormFile? file) => file is null || file.Length == 0;
-
-    private async Task<Result<ShipmentCreatedResponse>> CreateShipmentFromFileAsync(IFormFile file, CancellationToken ct)
+    private async Task<Result<ShipmentCreatedResponse>> CreateShipmentFromFileAsync(IFormFile? file, CancellationToken ct)
     {
         var userId = GetCurrentUserId();
-        await using var stream = file.OpenReadStream();
-        return await shipmentService.CreateShipmentAsync(stream, file.FileName, file.ContentType, file.Length, userId, ct);
+        await using var stream = file?.OpenReadStream() ?? Stream.Null;
+        return await shipmentService.CreateShipmentAsync(
+            stream,
+            file?.FileName ?? string.Empty,
+            file?.ContentType ?? string.Empty,
+            file?.Length ?? 0,
+            userId,
+            ct);
     }
 
     [HttpGet]

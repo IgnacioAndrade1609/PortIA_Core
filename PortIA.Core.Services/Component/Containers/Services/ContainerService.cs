@@ -1,6 +1,7 @@
 namespace PortIA.Core.Services.Component.Containers.Services;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using PortIA.Core.Infrastructure.Data.Entities;
 using PortIA.Core.Infrastructure.Data.UnitOfWork;
 using PortIA.Core.Services.Common.Results;
@@ -11,7 +12,8 @@ using PortIA.Core.Services.Component.Mensajeria.Publishers.Interfaces;
 
 public class ContainerService(
     IUnitOfWork unitOfWork,
-    IInspectContainerPublisher inspectContainerPublisher) : IContainerService
+    IInspectContainerPublisher inspectContainerPublisher,
+    ILogger<ContainerService> logger) : IContainerService
 {
     public async Task<Result<List<ContainerSummaryResponse>>> GetContainersAsync(
         int userId,
@@ -80,7 +82,12 @@ public class ContainerService(
         var container = await unitOfWork.Containers.GetByIdAsync(containerId, ct);
 
         if (container is null || container.AsignadoA != userId)
+        {
+            logger.LogWarning(
+                "GetHitos rechazado: container {ContainerId} no existe o no pertenece a userId={UserId}",
+                containerId, userId);
             return Result<IReadOnlyList<HitoResponse>>.NotFound($"El contenedor {containerId} no existe o no pertenece al usuario.");
+        }
 
         var hitos = await unitOfWork.Containers.Query()
             .Where(c => c.Id == containerId)

@@ -1,10 +1,10 @@
-namespace PortIA.Core.Services.Component.Storage.Services;
+namespace PortIA.Core.ExternalServices.Component.Storage.Clients;
 
 using Minio;
 using Minio.DataModel.Args;
-using PortIA.Core.Services.Component.Storage.Interfaces;
+using PortIA.Core.ExternalServices.Component.Storage.Interfaces;
 
-public class MinioStorageService(IMinioClient minioClient) : IMinioStorageService
+public class MinioStorageClient(IMinioClient minioClient) : IMinioStorageClient
 {
     private const string BucketName = "portia-documentos";
 
@@ -12,7 +12,7 @@ public class MinioStorageService(IMinioClient minioClient) : IMinioStorageServic
     {
         var beArgs = new BucketExistsArgs().WithBucket(BucketName);
         var found = await minioClient.BucketExistsAsync(beArgs, ct);
-        
+
         if (!found)
         {
             var mbArgs = new MakeBucketArgs().WithBucket(BucketName);
