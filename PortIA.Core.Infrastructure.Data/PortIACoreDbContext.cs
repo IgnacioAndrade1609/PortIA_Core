@@ -88,7 +88,7 @@ public class PortIACoreDbContext(DbContextOptions<PortIACoreDbContext> options) 
         modelBuilder.Entity<Usuario>(e =>
         {
             e.ToTable("USUARIO");
-            e.Property(x => x.Id).HasColumnName("ID_USUARIO").UseIdentityAlwaysColumn();
+            e.Property(x => x.Id).HasColumnName("ID_USUARIO").ValueGeneratedOnAdd();
             e.Property(x => x.NombreUsuario).HasColumnName("NOMBRE_USUARIO").HasMaxLength(250).IsRequired();
             e.Property(x => x.Email).HasColumnName("EMAIL").HasMaxLength(250).IsRequired();
             e.Property(x => x.PasswordHash).HasColumnName("PASSWORD_HASH").HasMaxLength(255).IsRequired();

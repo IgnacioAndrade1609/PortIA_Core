@@ -6,4 +6,7 @@ public record PagedResult<T>(
     int PageSize,
     long TotalItems,
     int TotalPages
-);
+)
+{
+    public PagedResult() : this([], 1, 10, 0, 1) { }
+}

@@ -1020,7 +1020,7 @@ namespace PortIA.Core.Infrastructure.Data.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("ID_USUARIO");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<int>("Id"));
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<DateTimeOffset>("Creacion")
                         .ValueGeneratedOnAdd()
