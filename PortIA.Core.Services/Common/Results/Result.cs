@@ -5,7 +5,8 @@ public enum ResultStatus
     Success,
     ValidationError,
     NotFound,
-    BusinessError
+    BusinessError,
+    Unauthorized
 }
 
 public class Result
@@ -28,6 +29,8 @@ public class Result
     public static Result NotFound(string message) => new(ResultStatus.NotFound, message, null);
 
     public static Result BusinessError(string message) => new(ResultStatus.BusinessError, message, null);
+
+    public static Result Unauthorized(string message) => new(ResultStatus.Unauthorized, message, null);
 
     public static Result ValidationError(IDictionary<string, string[]> errors) =>
         new(ResultStatus.ValidationError, null, errors);
@@ -61,11 +64,16 @@ public class Result<T>
         ValidationErrors = validationErrors;
     }
 
-    public static Result<T> Success(T value) => new(value);
+    public static Result<T> Success(T value) =>
+        value is null
+            ? throw new ArgumentNullException(nameof(value), "Result<T>.Success no puede recibir un valor null.")
+            : new(value);
 
     public static Result<T> NotFound(string message) => new(ResultStatus.NotFound, message, null);
 
     public static Result<T> BusinessError(string message) => new(ResultStatus.BusinessError, message, null);
+
+    public static Result<T> Unauthorized(string message) => new(ResultStatus.Unauthorized, message, null);
 
     public static Result<T> ValidationError(IDictionary<string, string[]> errors) =>
         new(ResultStatus.ValidationError, null, errors);

@@ -7,15 +7,17 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />
     <PackageReference Include="FluentValidation" Version="12.2.0" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.2.0" />
     <PackageReference Include="MassTransit" Version="8.5.2" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
-    <PackageReference Include="Minio" Version="7.0.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.23.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\PortIA.Core.Infrastructure.Data\PortIA.Core.Infrastructure.Data.csproj" />
+    <ProjectReference Include="..\PortIA.Core.ExternalServices\PortIA.Core.ExternalServices.csproj" />
   </ItemGroup>
 
 </Project>

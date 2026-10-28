@@ -13,6 +13,8 @@ public class UnitOfWork(PortIACoreDbContext dbContext) : IUnitOfWork
     private IClimaRepository? _climas;
     private IAccionRepository? _acciones;
     private ILogAuditoriaRepository? _logsAuditoria;
+    private IUsuarioRepository? _usuarios;
+    private IRolRepository? _roles;
 
     public ICargaDocumentosRepository CargasDocumentos => _cargasDocumentos ??= new CargaDocumentosRepository(dbContext);
     public IDocumentoRepository Documentos => _documentos ??= new DocumentoRepository(dbContext);
@@ -22,6 +24,8 @@ public class UnitOfWork(PortIACoreDbContext dbContext) : IUnitOfWork
     public IClimaRepository Climas => _climas ??= new ClimaRepository(dbContext);
     public IAccionRepository Acciones => _acciones ??= new AccionRepository(dbContext);
     public ILogAuditoriaRepository LogsAuditoria => _logsAuditoria ??= new LogAuditoriaRepository(dbContext);
+    public IUsuarioRepository Usuarios => _usuarios ??= new UsuarioRepository(dbContext);
+    public IRolRepository Roles => _roles ??= new RolRepository(dbContext);
 
     public Task<int> SaveChangesAsync(CancellationToken ct) => dbContext.SaveChangesAsync(ct);
 }

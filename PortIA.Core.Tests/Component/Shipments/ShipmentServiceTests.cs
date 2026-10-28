@@ -3,6 +3,7 @@ namespace PortIA.Core.Tests.Component.Shipments;
 using System.Text;
 using FluentValidation;
 using FluentValidation.Results;
+using Microsoft.Extensions.Logging;
 using MockQueryable.NSubstitute;
 using NSubstitute;
 using PortIA.Core.Infrastructure.Data.Entities;
@@ -11,7 +12,7 @@ using PortIA.Core.Infrastructure.Data.UnitOfWork;
 using PortIA.Core.Services.Common.Results;
 using PortIA.Core.Services.Component.Shipments.DTOs;
 using PortIA.Core.Services.Component.Shipments.Services;
-using PortIA.Core.Services.Component.Storage.Interfaces;
+using PortIA.Core.ExternalServices.Component.Storage.Interfaces;
 
 public class ShipmentServiceTests
 {
@@ -19,7 +20,7 @@ public class ShipmentServiceTests
     private readonly IDocumentoRepository _documentoRepository;
     private readonly IContainerRepository _containerRepository;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IMinioStorageService _minioStorageService;
+    private readonly IMinioStorageClient _minioStorageService;
     private readonly IValidator<CreateShipmentRequest> _createShipmentValidator;
     private readonly ShipmentService _sut;
 
@@ -34,10 +35,10 @@ public class ShipmentServiceTests
         _unitOfWork.Documentos.Returns(_documentoRepository);
         _unitOfWork.Containers.Returns(_containerRepository);
 
-        _minioStorageService = Substitute.For<IMinioStorageService>();
+        _minioStorageService = Substitute.For<IMinioStorageClient>();
         _createShipmentValidator = Substitute.For<IValidator<CreateShipmentRequest>>();
 
-        _sut = new ShipmentService(_unitOfWork, _minioStorageService, _createShipmentValidator);
+        _sut = new ShipmentService(_unitOfWork, _minioStorageService, _createShipmentValidator, Substitute.For<ILogger<ShipmentService>>());
 
         var emptyDocumentos = new List<Documento>().BuildMockDbSet();
         _documentoRepository.Query().Returns(emptyDocumentos);

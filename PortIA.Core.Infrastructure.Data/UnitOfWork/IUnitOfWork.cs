@@ -12,6 +12,8 @@ public interface IUnitOfWork
     IClimaRepository Climas { get; }
     IAccionRepository Acciones { get; }
     ILogAuditoriaRepository LogsAuditoria { get; }
+    IUsuarioRepository Usuarios { get; }
+    IRolRepository Roles { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct);
 }

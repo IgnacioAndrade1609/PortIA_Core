@@ -1,5 +1,6 @@
 namespace PortIA.Core.Tests.Component.Containers;
 
+using Microsoft.Extensions.Logging;
 using MockQueryable.NSubstitute;
 using NSubstitute;
 using PortIA.Core.Infrastructure.Data.Entities;
@@ -24,7 +25,7 @@ public class ContainerServiceTests
 
         _inspectContainerPublisher = Substitute.For<IInspectContainerPublisher>();
 
-        _sut = new ContainerService(_unitOfWork, _inspectContainerPublisher);
+        _sut = new ContainerService(_unitOfWork, _inspectContainerPublisher, Substitute.For<ILogger<ContainerService>>());
     }
 
     [Fact]
