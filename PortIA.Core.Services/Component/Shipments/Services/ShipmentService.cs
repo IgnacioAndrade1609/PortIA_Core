@@ -2,12 +2,14 @@ namespace PortIA.Core.Services.Component.Shipments.Services;
 
 using System.Security.Cryptography;
 using FluentValidation;
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using PortIA.Core.Infrastructure.Data.Entities;
 using PortIA.Core.Infrastructure.Data.UnitOfWork;
 using PortIA.Core.Services.Common.DTOs;
 using PortIA.Core.Services.Common.Results;
+using PortIA.Core.Services.Component.Mensajeria.Events;
 using PortIA.Core.Services.Component.Shipments.DTOs;
 using PortIA.Core.Services.Component.Shipments.Interfaces;
 using PortIA.Core.Services.Component.Shipments.Mappers;
@@ -17,6 +19,7 @@ public class ShipmentService(
     IUnitOfWork unitOfWork,
     IMinioStorageClient minioService,
     IValidator<CreateShipmentRequest> createShipmentValidator,
+    IPublishEndpoint publishEndpoint,
     ILogger<ShipmentService> logger) : IShipmentService
 {
     private const int DefaultPageSize = 20;
@@ -44,7 +47,47 @@ public class ShipmentService(
 
         var storagePath = await minioService.UploadFileAsync(fileStream, fileName, contentType, ct);
 
-        return await PersistShipmentAsync(storagePath, documentHash, userId, ct);
+        var persistResult = await PersistShipmentAsync(storagePath, documentHash, userId, ct);
+        if (!persistResult.IsSuccess)
+            return persistResult;
+
+        await PublishShipmentCreatedAsync(storagePath, persistResult.Value, ct);
+
+        return persistResult;
+    }
+
+    private async Task PublishShipmentCreatedAsync(
+        string storagePath,
+        ShipmentCreatedResponse shipment,
+        CancellationToken ct)
+    {
+        try
+        {
+            // El agente corre fuera de la red de MinIO: necesita una URL firmada, no el
+            // storagePath interno ("bucket/objeto").
+            var documentUrl = await minioService.GetPresignedUrlAsync(storagePath, 1800, ct);
+
+            await publishEndpoint.Publish(
+                new ShipmentCreated(
+                    shipment.ShipmentId,
+                    shipment.DocumentId,
+                    documentUrl,
+                    "BL"),
+                ct);
+
+            logger.LogInformation(
+                "ShipmentCreated publicado (shipmentId={ShipmentId}, documentId={DocumentId})",
+                shipment.ShipmentId,
+                shipment.DocumentId);
+        }
+        catch (Exception ex)
+        {
+            // El PDF ya quedó persistido: no rompemos la subida si RabbitMQ falla.
+            logger.LogError(ex,
+                "No se pudo publicar ShipmentCreated (shipmentId={ShipmentId}, documentId={DocumentId})",
+                shipment.ShipmentId,
+                shipment.DocumentId);
+        }
     }
 
     public async Task<Result<PagedResult<ShipmentSummaryResponse>>> GetShipmentsAsync(
