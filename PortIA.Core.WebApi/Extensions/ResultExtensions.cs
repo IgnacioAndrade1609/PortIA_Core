@@ -17,6 +17,7 @@ public static class ResultExtensions
             ResultStatus.ValidationError => controller.BadRequest(BuildValidationProblem(controller, result.ValidationErrors)),
             ResultStatus.NotFound => controller.NotFound(BuildProblem(controller, StatusCodes.Status404NotFound, "No encontrado", result.Error)),
             ResultStatus.BusinessError => controller.Conflict(BuildProblem(controller, StatusCodes.Status409Conflict, "Error de negocio", result.Error)),
+            ResultStatus.Conflict => controller.Conflict(BuildProblem(controller, StatusCodes.Status409Conflict, "Conflicto", result.Error)),
             ResultStatus.Unauthorized => controller.Unauthorized(BuildProblem(controller, StatusCodes.Status401Unauthorized, "No autorizado", result.Error)),
             _ => controller.StatusCode(StatusCodes.Status500InternalServerError)
         };
@@ -33,6 +34,7 @@ public static class ResultExtensions
             ResultStatus.ValidationError => controller.BadRequest(BuildValidationProblem(controller, result.ValidationErrors)),
             ResultStatus.NotFound => controller.NotFound(BuildProblem(controller, StatusCodes.Status404NotFound, "No encontrado", result.Error)),
             ResultStatus.BusinessError => controller.Conflict(BuildProblem(controller, StatusCodes.Status409Conflict, "Error de negocio", result.Error)),
+            ResultStatus.Conflict => controller.Conflict(BuildProblem(controller, StatusCodes.Status409Conflict, "Conflicto", result.Error)),
             ResultStatus.Unauthorized => controller.Unauthorized(BuildProblem(controller, StatusCodes.Status401Unauthorized, "No autorizado", result.Error)),
             _ => controller.StatusCode(StatusCodes.Status500InternalServerError)
         };

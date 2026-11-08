@@ -7,10 +7,7 @@ using PortIA.Core.Services.Component.Shipments.DTOs;
 public interface IShipmentService
 {
     Task<Result<ShipmentCreatedResponse>> CreateShipmentAsync(
-        Stream fileStream,
-        string fileName,
-        string contentType,
-        long fileSize,
+        IReadOnlyList<ShipmentFileInput> files,
         int userId,
         CancellationToken ct);
 

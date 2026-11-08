@@ -5,14 +5,12 @@ using PortIA.Core.Services.Component.Shipments.DTOs;
 
 public static class ShipmentMapper
 {
-    private const float LowConfidenceThreshold = 0.7f;
-
-    public static ShipmentCreatedResponse ToCreatedResponse(this CargaDocumentos carga, Documento documento) =>
+    public static ShipmentCreatedResponse ToCreatedResponse(this CargaDocumentos carga, IReadOnlyList<UploadedDocumentResult> documentos) =>
         new(
             ShipmentId: carga.Id,
-            DocumentId: documento.Id,
             Status: carga.Status,
-            CreatedAt: carga.CreacionFecha.UtcDateTime
+            CreatedAt: carga.CreacionFecha.UtcDateTime,
+            Documents: documentos
         );
 
     public static ShipmentSummaryResponse ToSummaryResponse(this ShipmentSummaryProjection projection) =>
@@ -31,9 +29,7 @@ public static class ShipmentMapper
             projection.TipoDocumento,
             Path.GetFileName(projection.StorageUrl),
             projection.Confidence,
-            projection.Confidence.HasValue && projection.Confidence.Value < LowConfidenceThreshold
-                ? "NEEDS_REVIEW"
-                : projection.EstadoExtraccion,
+            projection.EstadoExtraccion,
             projection.ContieneDatosPersonales,
             projection.RetencionHasta?.UtcDateTime
         );

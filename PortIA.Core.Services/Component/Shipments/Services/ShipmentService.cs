@@ -23,28 +23,32 @@ public class ShipmentService(
     private const int MaxPageSize = 100;
 
     public async Task<Result<ShipmentCreatedResponse>> CreateShipmentAsync(
-        Stream fileStream,
-        string fileName,
-        string contentType,
-        long fileSize,
+        IReadOnlyList<ShipmentFileInput> files,
         int userId,
         CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(fileStream);
+        ArgumentNullException.ThrowIfNull(files);
 
-        var validationError = await ValidateCreateRequestAsync(fileName, contentType, fileSize, ct);
-        if (validationError is not null)
-            return validationError;
+        if (files.Count == 0)
+        {
+            return Result<ShipmentCreatedResponse>.ValidationError(new Dictionary<string, string[]>
+            {
+                ["files"] = ["Debe adjuntar al menos un archivo."],
+            });
+        }
 
-        var documentHash = await ComputeFileHashAsync(fileStream, ct);
+        var evaluaciones = await EvaluarArchivosAsync(files, ct);
+        var archivosValidos = evaluaciones.Where(e => e.EsValido).ToList();
 
-        var duplicateError = await EnsureDocumentIsNotDuplicateAsync(documentHash, ct);
-        if (duplicateError is not null)
-            return duplicateError;
+        if (archivosValidos.Count == 0)
+        {
+            var errores = evaluaciones
+                .Select((e, i) => (Key: $"files[{i}]", Value: new[] { $"{e.Input.FileName}: {e.Motivo}" }))
+                .ToDictionary(x => x.Key, x => x.Value);
+            return Result<ShipmentCreatedResponse>.ValidationError(errores);
+        }
 
-        var storagePath = await minioService.UploadFileAsync(fileStream, fileName, contentType, ct);
-
-        return await PersistShipmentAsync(storagePath, documentHash, userId, ct);
+        return await PersistShipmentAsync(evaluaciones, userId, ct);
     }
 
     public async Task<Result<PagedResult<ShipmentSummaryResponse>>> GetShipmentsAsync(
@@ -86,16 +90,53 @@ public class ShipmentService(
     }
 
 
-    private async Task<Result<ShipmentCreatedResponse>?> ValidateCreateRequestAsync(
-        string fileName, string contentType, long fileSize, CancellationToken ct)
+    private async Task<List<EvaluacionArchivo>> EvaluarArchivosAsync(IReadOnlyList<ShipmentFileInput> files, CancellationToken ct)
+    {
+        var evaluaciones = new List<EvaluacionArchivo>();
+        var hashesEnLote = new HashSet<string>();
+
+        foreach (var file in files)
+        {
+            var motivoValidacion = await ValidarArchivoAsync(file, ct);
+            if (motivoValidacion is not null)
+            {
+                evaluaciones.Add(new EvaluacionArchivo(file, false, motivoValidacion, null, EsDuplicado: false));
+                continue;
+            }
+
+            var hash = await ComputeFileHashAsync(file.Content, ct);
+
+            if (!hashesEnLote.Add(hash))
+            {
+                evaluaciones.Add(new EvaluacionArchivo(file, false, "Archivo duplicado dentro de esta misma carga.", hash, EsDuplicado: true));
+                continue;
+            }
+
+            var existente = await unitOfWork.Documentos.GetByHashAsync(hash, ct);
+            if (existente is not null)
+            {
+                evaluaciones.Add(new EvaluacionArchivo(
+                    file, false, $"El documento ya fue subido previamente en la carga #{existente.IdCargaDocumentos}.", hash, EsDuplicado: true));
+                continue;
+            }
+
+            evaluaciones.Add(new EvaluacionArchivo(file, true, null, hash, EsDuplicado: false));
+        }
+
+        return evaluaciones;
+    }
+
+    private async Task<string?> ValidarArchivoAsync(ShipmentFileInput file, CancellationToken ct)
     {
         var validation = await createShipmentValidator.ValidateAsync(
-            new CreateShipmentRequest(fileName, contentType, fileSize), ct);
+            new CreateShipmentRequest(file.FileName, file.ContentType, file.Length), ct);
 
         return validation.IsValid
             ? null
-            : Result<ShipmentCreatedResponse>.ValidationError(validation.ToDictionary());
+            : string.Join(" ", validation.Errors.Select(e => e.ErrorMessage));
     }
+
+    private sealed record EvaluacionArchivo(ShipmentFileInput Input, bool EsValido, string? Motivo, string? Hash, bool EsDuplicado);
 
     private static async Task<string> ComputeFileHashAsync(Stream fileStream, CancellationToken ct)
     {
@@ -111,46 +152,54 @@ public class ShipmentService(
         return hash;
     }
 
-    private async Task<Result<ShipmentCreatedResponse>?> EnsureDocumentIsNotDuplicateAsync(string documentHash, CancellationToken ct)
-    {
-        var existingDocumentWithSameHash = await unitOfWork.Documentos.GetByHashAsync(documentHash, ct);
-
-        if (existingDocumentWithSameHash is null)
-            return null;
-
-        logger.LogWarning(
-            "CreateShipment rechazado: documento duplicado (hash={DocumentHash}, cargaExistente={CargaId})",
-            documentHash, existingDocumentWithSameHash.IdCargaDocumentos);
-
-        return Result<ShipmentCreatedResponse>.BusinessError(
-            $"El documento ya fue subido previamente en la carga #{existingDocumentWithSameHash.IdCargaDocumentos}.");
-    }
-
     private async Task<Result<ShipmentCreatedResponse>> PersistShipmentAsync(
-        string storagePath, string documentHash, int userId, CancellationToken ct)
+        List<EvaluacionArchivo> evaluaciones, int userId, CancellationToken ct)
     {
+        var archivosValidos = evaluaciones.Where(e => e.EsValido).ToList();
+        var storagePathsSubidos = new List<string>();
+
         try
         {
             var cargaDocumentos = BuildCargaDocumentos(userId);
             await unitOfWork.CargasDocumentos.AddAsync(cargaDocumentos, ct);
             await unitOfWork.SaveChangesAsync(ct);
 
-            var documento = BuildDocumento(cargaDocumentos.Id, storagePath, documentHash);
-            await unitOfWork.Documentos.AddAsync(documento, ct);
+            var documentosPorEvaluacion = new Dictionary<EvaluacionArchivo, Documento>();
+
+            foreach (var evaluacion in archivosValidos)
+            {
+                var storagePath = await minioService.UploadFileAsync(
+                    evaluacion.Input.Content, evaluacion.Input.FileName, evaluacion.Input.ContentType, ct);
+                storagePathsSubidos.Add(storagePath);
+
+                var documento = BuildDocumento(cargaDocumentos.Id, storagePath, evaluacion.Hash!);
+                await unitOfWork.Documentos.AddAsync(documento, ct);
+                documentosPorEvaluacion[evaluacion] = documento;
+            }
+
             await unitOfWork.SaveChangesAsync(ct);
 
             logger.LogInformation(
-                "Shipment creado (cargaId={CargaId}, documentoId={DocumentoId}, userId={UserId})",
-                cargaDocumentos.Id, documento.Id, userId);
+                "Shipment creado (cargaId={CargaId}, documentosCreados={DocumentCount}, documentosRechazados={RejectedCount}, userId={UserId})",
+                cargaDocumentos.Id, documentosPorEvaluacion.Count, evaluaciones.Count - archivosValidos.Count, userId);
 
-            return Result<ShipmentCreatedResponse>.Success(cargaDocumentos.ToCreatedResponse(documento));
+            var resultadosPorArchivo = evaluaciones
+                .Select(e => documentosPorEvaluacion.TryGetValue(e, out var documento)
+                    ? new UploadedDocumentResult(e.Input.FileName, "PENDIENTE", documento.Id, null)
+                    : new UploadedDocumentResult(e.Input.FileName, e.EsDuplicado ? "DUPLICADO" : "RECHAZADO", null, e.Motivo))
+                .ToList();
+
+            return Result<ShipmentCreatedResponse>.Success(cargaDocumentos.ToCreatedResponse(resultadosPorArchivo));
         }
         catch (Exception ex)
         {
             logger.LogError(ex,
-                "Fallo al persistir shipment (userId={UserId}, storagePath={StoragePath}); se revierte el archivo subido",
-                userId, storagePath);
-            await minioService.RemoveFileAsync(storagePath, ct);
+                "Fallo al persistir shipment (userId={UserId}, archivosSubidos={Count}); se revierten los archivos subidos",
+                userId, storagePathsSubidos.Count);
+            foreach (var storagePath in storagePathsSubidos)
+            {
+                await minioService.RemoveFileAsync(storagePath, ct);
+            }
             throw;
         }
     }

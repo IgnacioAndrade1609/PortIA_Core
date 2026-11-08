@@ -13,7 +13,13 @@ public class ContainerRepository(PortIACoreDbContext dbContext) : IContainerRepo
     }
 
     public Task<Container?> GetByIdAsync(int id, CancellationToken ct) =>
-        dbContext.Containers.FirstOrDefaultAsync(c => c.Id == id, ct);
+        dbContext.Containers
+            .Include(c => c.Riesgo)
+            .Include(c => c.EstadoContainer)
+            .Include(c => c.Naviera)
+            .Include(c => c.TerminalOrigen)
+            .Include(c => c.TerminalLlegada)
+            .FirstOrDefaultAsync(c => c.Id == id, ct);
 
     public IQueryable<Container> Query() =>
         dbContext.Containers.AsNoTracking().Where(c => c.Vigente);
