@@ -31,7 +31,7 @@ public class Container
     public DateTimeOffset CreateAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdateAt { get; set; } = DateTimeOffset.UtcNow;
     public bool Vigente { get; set; } = true;
-
+    public int? IdEstado { get; set; }
     public CargaDocumentos CargaDocumentos { get; set; } = null!;
     public Naviera? Naviera { get; set; }
     public Terminal? TerminalOrigen { get; set; }
@@ -42,4 +42,5 @@ public class Container
 
     public ICollection<Hito> Hitos { get; set; } = new List<Hito>();
     public ICollection<Alerta> Alertas { get; set; } = new List<Alerta>();
+    public EstadoContainer? EstadoContainer { get; set; }
 }
