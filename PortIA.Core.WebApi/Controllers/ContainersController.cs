@@ -1,6 +1,7 @@
 namespace PortIA.Core.WebApi.Controllers;
 
 using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PortIA.Core.Services.Component.Containers.DTOs;
 using PortIA.Core.Services.Component.Containers.Interfaces;
@@ -8,6 +9,7 @@ using PortIA.Core.WebApi.Extensions;
 
 [ApiController]
 [Route("api/v1/containers")]
+[Authorize]
 public class ContainersController(IContainerService containerService) : ControllerBase
 {
     [HttpGet]
@@ -66,6 +68,71 @@ public class ContainersController(IContainerService containerService) : Controll
         var result = await containerService.GetHitosAsync(id, userId, ct);
 
         return result.ToActionResult(this, Ok);
+    }
+
+    [HttpPut("{id:int}/retiro")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> MarkRetiro(int id, CancellationToken ct)
+    {
+        var userId = GetCurrentUserId();
+
+        var result = await containerService.MarkRetiroAsync(id, userId, ct);
+
+        return result.ToActionResult(this, () => NoContent());
+    }
+
+    [HttpPut("{id:int}/devolucion-vacio")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> MarkDevolucionVacia(int id, CancellationToken ct)
+    {
+        var userId = GetCurrentUserId();
+
+        var result = await containerService.MarkDevolucionVaciaAsync(id, userId, ct);
+
+        return result.ToActionResult(this, () => NoContent());
+    }
+
+    [HttpPut("{id:int}/arribo-real")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ConfirmarArriboReal(int id, ConfirmarArriboRequest request, CancellationToken ct)
+    {
+        var userId = GetCurrentUserId();
+
+        var result = await containerService.ConfirmarArriboRealAsync(id, userId, request.FechaArriboReal, ct);
+
+        return result.ToActionResult(this, () => NoContent());
+    }
+
+    [HttpPut("{id:int}/dias-libres")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateDiasLibres(int id, UpdateDiasLibresRequest request, CancellationToken ct)
+    {
+        var userId = GetCurrentUserId();
+
+        var result = await containerService.UpdateDiasLibresAsync(id, userId, request.DemurrageFreeDays, request.DetentionFreeDays, ct);
+
+        return result.ToActionResult(this, () => NoContent());
+    }
+
+    [HttpPut("{id:int}/datos-extraidos")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateDatosExtraidos(int id, UpdateContainerMetadataRequest request, CancellationToken ct)
+    {
+        var userId = GetCurrentUserId();
+
+        var result = await containerService.UpdateDatosExtraidosAsync(id, userId, request, ct);
+
+        return result.ToActionResult(this, () => NoContent());
     }
 
     private int GetCurrentUserId()

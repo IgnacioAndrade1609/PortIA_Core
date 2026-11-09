@@ -1,10 +1,13 @@
+using System.Text.Json;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using PortIA.Core.Infrastructure.Data.Entities;
 using PortIA.Core.Infrastructure.Data.UnitOfWork;
+using PortIA.Core.Services.Common;
 using PortIA.Core.Services.Component.Mensajeria.Events;
 using PortIA.Core.Services.Component.Mensajeria.Publishers.Interfaces;
+using PortIA.Core.Services.Component.Shipments.DTOs;
 
 namespace PortIA.Core.Services.Component.Mensajeria.Consumers;
 
@@ -13,13 +16,47 @@ public class DataExtractedConsumer(
     IInspectContainerPublisher inspectContainerPublisher,
     ILogger<DataExtractedConsumer> logger) : IConsumer<DataExtracted>
 {
+    private const string EstadoPendienteRevision = "PENDIENTE_REVISION";
+    private const string EstadoCompleto = "COMPLETO";
+
     private static readonly string[] PrefijosPuerto = ["Puerto de ", "Puerto "];
 
     public async Task Consume(ConsumeContext<DataExtracted> context)
     {
         var evento = context.Message;
-        logger.LogInformation("DataExtracted recibido: shipment_id={ShipmentId}, container_number={ContainerNumber}",
-            evento.ShipmentId, evento.ContainerNumber);
+        logger.LogInformation("DataExtracted recibido: shipment_id={ShipmentId}, container_number={ContainerNumber}, confidence={Confidence}",
+            evento.ShipmentId, evento.ContainerNumber, evento.Confidence);
+
+        var documento = await unitOfWork.Documentos.GetByIdAsync(evento.DocumentId, context.CancellationToken);
+        if (documento is null)
+        {
+            logger.LogWarning("DataExtracted descartado: documento {DocumentId} no existe", evento.DocumentId);
+            return;
+        }
+
+        documento.Confidence = (float)evento.Confidence;
+        documento.DatosExtraidosRaw = JsonSerializer.Serialize(new ExtractedDataSnapshot(
+            evento.ContainerNumber,
+            evento.BlNumber,
+            evento.ShippingLine,
+            evento.PortOfDestination,
+            evento.Eta,
+            evento.DemurrageFreeDays,
+            evento.DetentionFreeDays,
+            evento.ForwarderName));
+
+        if (evento.Confidence < DocumentExtractionConstants.LowConfidenceThreshold)
+        {
+            documento.EstadoExtraccion = EstadoPendienteRevision;
+            await unitOfWork.SaveChangesAsync(context.CancellationToken);
+
+            logger.LogInformation(
+                "Documento {DocumentId} queda pendiente de revisión manual (confianza {Confidence} bajo el umbral), no se crea el contenedor automáticamente",
+                documento.Id, evento.Confidence);
+            return;
+        }
+
+        documento.EstadoExtraccion = EstadoCompleto;
 
         var terminales = await unitOfWork.Terminales.Query().ToListAsync(context.CancellationToken);
         var idTerminalLlegada = ResolveTerminalLlegadaId(evento.PortOfDestination, terminales);
