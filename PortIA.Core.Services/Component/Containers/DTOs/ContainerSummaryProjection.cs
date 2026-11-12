@@ -4,6 +4,7 @@ public record ContainerSummaryProjection(
     int Id,
     string NumeroContainer,
     string? NumeroBl,
+    string? NombreForwarder,
     int? IdNaviera,
     string? NavieraNombre,
     int? IdTerminalOrigen,
@@ -21,6 +22,7 @@ public record ContainerSummaryProjection(
     bool NeedsReview,
     bool Managed,
     string? EstadoPuerto,
+    string? Estado,
     int? AsignadoA,
     string? AsignadoANombre,
     DateTimeOffset CreateAt

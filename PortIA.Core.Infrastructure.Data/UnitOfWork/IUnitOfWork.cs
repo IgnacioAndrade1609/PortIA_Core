@@ -14,6 +14,11 @@ public interface IUnitOfWork
     ILogAuditoriaRepository LogsAuditoria { get; }
     IUsuarioRepository Usuarios { get; }
     IRolRepository Roles { get; }
+    IRiesgoRepository Riesgos { get; }
+    IEstadoContainerRepository EstadosContainer { get; }
+    ITipoAlertaRepository TiposAlerta { get; }
+    IAlertaRepository Alertas { get; }
+    INavieraRepository Navieras { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct);
 }

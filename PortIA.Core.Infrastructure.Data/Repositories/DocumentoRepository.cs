@@ -15,6 +15,9 @@ public class DocumentoRepository(PortIACoreDbContext dbContext) : IDocumentoRepo
     public Task<Documento?> GetByHashAsync(string huellaHash, CancellationToken ct) =>
         dbContext.Documentos.AsNoTracking().FirstOrDefaultAsync(d => d.HuellaHash == huellaHash, ct);
 
+    public Task<Documento?> GetByIdAsync(int id, CancellationToken ct) =>
+        dbContext.Documentos.FirstOrDefaultAsync(d => d.Id == id, ct);
+
     public IQueryable<Documento> Query() =>
         dbContext.Documentos.AsNoTracking().Where(d => d.Vigente);
 }

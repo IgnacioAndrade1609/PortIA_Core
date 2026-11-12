@@ -8,5 +8,6 @@ public record RealStatusUpdated(
     bool WeatherAlert,
     Dictionary<string, object>? WeatherData,
     string ScraperSource,
-    DateTimeOffset ScrapedAt
+    DateTimeOffset ScrapedAt,
+    string? EstadoContenedor = null
 );

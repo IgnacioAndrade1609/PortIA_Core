@@ -8,6 +8,7 @@ public record ContainerSummaryResponse(
     int Id,
     string ContainerNumber,
     string? BlNumber,
+    string? ForwarderName,
     ShippingLineDto? ShippingLine,
     DateTime? Eta,
     DateTime? ArrivalDate,
@@ -21,6 +22,7 @@ public record ContainerSummaryResponse(
     bool NeedsReview,
     bool Managed,
     string? PortStatus,
+    string? Estado,
     AssignedToDto? AssignedTo,
     TerminalDto? OriginTerminal,
     TerminalDto? DestinationTerminal

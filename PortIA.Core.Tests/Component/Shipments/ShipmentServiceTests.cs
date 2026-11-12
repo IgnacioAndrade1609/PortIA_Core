@@ -47,45 +47,73 @@ public class ShipmentServiceTests
         _containerRepository.Query().Returns(emptyContainers);
     }
 
-    private static MemoryStream CreateFakeFileStream() => new(Encoding.UTF8.GetBytes("contenido-de-prueba"));
+    private static ShipmentFileInput BuildFileInput(string fileName = "archivo.pdf", string contenido = "contenido-de-prueba") =>
+        new(new MemoryStream(Encoding.UTF8.GetBytes(contenido)), fileName, "application/pdf", contenido.Length);
 
-    private void SetValidationResult(bool isValid, string? propertyName = null, string? errorMessage = null)
+    private void SetValidationResult(bool isValid, string? errorMessage = null)
     {
         var failures = isValid
             ? []
-            : new List<ValidationFailure> { new(propertyName ?? "FileSize", errorMessage ?? "Inválido") };
+            : new List<ValidationFailure> { new("FileSize", errorMessage ?? "Inválido") };
 
         _createShipmentValidator
             .ValidateAsync(Arg.Any<CreateShipmentRequest>(), Arg.Any<CancellationToken>())
             .Returns(new ValidationResult(failures));
     }
 
+    private void SetupSuccessfulPersistence(int cargaId = 10, params int[] documentIds)
+    {
+        _documentoRepository.GetByHashAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns((Documento?)null);
+        _minioStorageService
+            .UploadFileAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(ci => $"documentos/{ci.ArgAt<string>(1)}");
+
+        _cargaDocumentosRepository
+            .AddAsync(Arg.Any<CargaDocumentos>(), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask)
+            .AndDoes(callInfo => callInfo.Arg<CargaDocumentos>().Id = cargaId);
+
+        var idsRestantes = new Queue<int>(documentIds);
+        _documentoRepository
+            .AddAsync(Arg.Any<Documento>(), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask)
+            .AndDoes(callInfo => callInfo.Arg<Documento>().Id = idsRestantes.Dequeue());
+    }
+
     // ---------- CreateShipmentAsync ----------
 
     [Fact]
-    public async Task CreateShipmentAsync_WithNullStream_ThrowsArgumentNullException()
+    public async Task CreateShipmentAsync_WithNullFiles_ThrowsArgumentNullException()
     {
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            _sut.CreateShipmentAsync(null!, "archivo.pdf", "application/pdf", 1024, userId: 1, CancellationToken.None));
+            _sut.CreateShipmentAsync(null!, userId: 1, CancellationToken.None));
     }
 
     [Fact]
-    public async Task CreateShipmentAsync_WithInvalidRequest_ReturnsValidationError()
+    public async Task CreateShipmentAsync_WithEmptyFileList_ReturnsValidationError()
     {
-        SetValidationResult(isValid: false, propertyName: "FileSize", errorMessage: "El archivo está vacío o es nulo.");
-
-        using var fileStream = CreateFakeFileStream();
-        var result = await _sut.CreateShipmentAsync(fileStream, "archivo.pdf", "application/pdf", 0, userId: 1, CancellationToken.None);
+        var result = await _sut.CreateShipmentAsync([], userId: 1, CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(ResultStatus.ValidationError, result.Status);
-        Assert.Contains("FileSize", result.ValidationErrors!.Keys);
+        Assert.Contains("files", result.ValidationErrors!.Keys);
+    }
+
+    [Fact]
+    public async Task CreateShipmentAsync_WithSingleInvalidFile_ReturnsValidationErrorAndDoesNotUpload()
+    {
+        SetValidationResult(isValid: false, errorMessage: "El archivo está vacío o es nulo.");
+
+        var result = await _sut.CreateShipmentAsync([BuildFileInput()], userId: 1, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ResultStatus.ValidationError, result.Status);
         await _minioStorageService.DidNotReceive().UploadFileAsync(
             Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task CreateShipmentAsync_WithDuplicateHash_ReturnsBusinessError()
+    public async Task CreateShipmentAsync_WithSingleDuplicateFile_ReturnsValidationErrorAndDoesNotUpload()
     {
         SetValidationResult(isValid: true);
 
@@ -94,18 +122,103 @@ public class ShipmentServiceTests
             .GetByHashAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(existingDocument);
 
-        using var fileStream = CreateFakeFileStream();
-        var result = await _sut.CreateShipmentAsync(fileStream, "archivo.pdf", "application/pdf", 1024, userId: 1, CancellationToken.None);
+        var result = await _sut.CreateShipmentAsync([BuildFileInput()], userId: 1, CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(ResultStatus.BusinessError, result.Status);
-        Assert.Contains("#42", result.Error);
+        Assert.Equal(ResultStatus.ValidationError, result.Status);
         await _minioStorageService.DidNotReceive().UploadFileAsync(
             Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task CreateShipmentAsync_WithValidNewFile_ReturnsSuccessWithCreatedShipment()
+    public async Task CreateShipmentAsync_WithSingleValidFile_ReturnsSuccessWithCreatedShipment()
+    {
+        SetValidationResult(isValid: true);
+        SetupSuccessfulPersistence(cargaId: 10, documentIds: 20);
+
+        var result = await _sut.CreateShipmentAsync([BuildFileInput()], userId: 7, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(10, result.Value.ShipmentId);
+        Assert.Equal("PROCESANDO", result.Value.Status);
+        Assert.Single(result.Value.Documents);
+        Assert.Equal(20, result.Value.Documents[0].DocumentId);
+        Assert.Equal("PENDIENTE", result.Value.Documents[0].Status);
+    }
+
+    [Fact]
+    public async Task CreateShipmentAsync_WithMultipleValidFiles_CreatesOneCargaWithAllDocuments()
+    {
+        SetValidationResult(isValid: true);
+        SetupSuccessfulPersistence(cargaId: 10, documentIds: [20, 21, 22]);
+
+        var files = new[]
+        {
+            BuildFileInput("a.pdf", "contenido-a"),
+            BuildFileInput("b.pdf", "contenido-b"),
+            BuildFileInput("c.pdf", "contenido-c"),
+        };
+        var result = await _sut.CreateShipmentAsync(files, userId: 7, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(10, result.Value.ShipmentId);
+        Assert.Equal(3, result.Value.Documents.Count);
+        Assert.All(result.Value.Documents, d => Assert.Equal("PENDIENTE", d.Status));
+        await _cargaDocumentosRepository.Received(1).AddAsync(Arg.Any<CargaDocumentos>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CreateShipmentAsync_WithSameFileTwiceInSameBatch_MarksSecondOneAsDuplicateAndKeepsFirst()
+    {
+        SetValidationResult(isValid: true);
+        SetupSuccessfulPersistence(cargaId: 10, documentIds: 20);
+
+        var files = new[] { BuildFileInput("a.pdf", "mismo-contenido"), BuildFileInput("b.pdf", "mismo-contenido") };
+        var result = await _sut.CreateShipmentAsync(files, userId: 7, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value.Documents.Count);
+        Assert.Equal("PENDIENTE", result.Value.Documents.Single(d => d.FileName == "a.pdf").Status);
+        Assert.Equal("DUPLICADO", result.Value.Documents.Single(d => d.FileName == "b.pdf").Status);
+    }
+
+    [Fact]
+    public async Task CreateShipmentAsync_WithMixOfValidAndInvalidFiles_PersistsOnlyValidOnesAndReportsBoth()
+    {
+        _createShipmentValidator
+            .ValidateAsync(Arg.Is<CreateShipmentRequest>(r => r.FileName == "bueno.pdf"), Arg.Any<CancellationToken>())
+            .Returns(new ValidationResult());
+        _createShipmentValidator
+            .ValidateAsync(Arg.Is<CreateShipmentRequest>(r => r.FileName == "malo.pdf"), Arg.Any<CancellationToken>())
+            .Returns(new ValidationResult(new List<ValidationFailure> { new("FileName", "Formato no permitido.") }));
+
+        SetupSuccessfulPersistence(cargaId: 10, documentIds: 20);
+
+        var files = new[] { BuildFileInput("bueno.pdf"), BuildFileInput("malo.pdf") };
+        var result = await _sut.CreateShipmentAsync(files, userId: 7, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value.Documents.Count);
+        Assert.Equal("PENDIENTE", result.Value.Documents.Single(d => d.FileName == "bueno.pdf").Status);
+        Assert.Equal("RECHAZADO", result.Value.Documents.Single(d => d.FileName == "malo.pdf").Status);
+    }
+
+    [Fact]
+    public async Task CreateShipmentAsync_WhenAllFilesAreInvalid_ReturnsValidationErrorWithoutCreatingCarga()
+    {
+        SetValidationResult(isValid: false, errorMessage: "Formato de archivo no permitido.");
+
+        var files = new[] { BuildFileInput("a.pdf"), BuildFileInput("b.pdf") };
+        var result = await _sut.CreateShipmentAsync(files, userId: 7, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ResultStatus.ValidationError, result.Status);
+        Assert.Equal(2, result.ValidationErrors!.Count);
+        await _cargaDocumentosRepository.DidNotReceive().AddAsync(Arg.Any<CargaDocumentos>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CreateShipmentAsync_WhenPersistenceFails_RemovesUploadedFilesAndRethrows()
     {
         SetValidationResult(isValid: true);
         _documentoRepository.GetByHashAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns((Documento?)null);
@@ -120,34 +233,10 @@ public class ShipmentServiceTests
 
         _documentoRepository
             .AddAsync(Arg.Any<Documento>(), Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask)
-            .AndDoes(callInfo => callInfo.Arg<Documento>().Id = 20);
-
-        using var fileStream = CreateFakeFileStream();
-        var result = await _sut.CreateShipmentAsync(fileStream, "archivo.pdf", "application/pdf", 1024, userId: 7, CancellationToken.None);
-
-        Assert.True(result.IsSuccess);
-        Assert.Equal(10, result.Value.ShipmentId);
-        Assert.Equal(20, result.Value.DocumentId);
-        Assert.Equal("PROCESANDO", result.Value.Status);
-    }
-
-    [Fact]
-    public async Task CreateShipmentAsync_WhenPersistenceFails_RemovesUploadedFileAndRethrows()
-    {
-        SetValidationResult(isValid: true);
-        _documentoRepository.GetByHashAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns((Documento?)null);
-        _minioStorageService
-            .UploadFileAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns("documentos/archivo.pdf");
-
-        _cargaDocumentosRepository
-            .AddAsync(Arg.Any<CargaDocumentos>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromException(new InvalidOperationException("La base de datos no responde.")));
 
-        using var fileStream = CreateFakeFileStream();
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            _sut.CreateShipmentAsync(fileStream, "archivo.pdf", "application/pdf", 1024, userId: 7, CancellationToken.None));
+            _sut.CreateShipmentAsync([BuildFileInput()], userId: 7, CancellationToken.None));
 
         await _minioStorageService.Received(1).RemoveFileAsync("documentos/archivo.pdf", Arg.Any<CancellationToken>());
     }
@@ -268,7 +357,7 @@ public class ShipmentServiceTests
         var documentos = new List<Documento>
         {
             new() { Id = 1, IdCargaDocumentos = 123, TipoDocumento = "BL", StorageUrl = "docs/a.pdf", Confidence = 0.95f, EstadoExtraccion = "COMPLETO", ContieneDatosPersonales = true },
-            new() { Id = 2, IdCargaDocumentos = 123, TipoDocumento = "BL", StorageUrl = "docs/b.pdf", Confidence = 0.4f, EstadoExtraccion = "COMPLETO", ContieneDatosPersonales = false }
+            new() { Id = 2, IdCargaDocumentos = 123, TipoDocumento = "BL", StorageUrl = "docs/b.pdf", Confidence = 0.4f, EstadoExtraccion = "PENDIENTE_REVISION", ContieneDatosPersonales = false }
         };
         var mockDocumentos = documentos.BuildMockDbSet();
         _documentoRepository.Query().Returns(mockDocumentos);
@@ -278,6 +367,6 @@ public class ShipmentServiceTests
         Assert.True(result.IsSuccess);
         Assert.Equal(2, result.Value.Documents.Count);
         Assert.Equal("COMPLETO", result.Value.Documents.Single(d => d.Id == 1).ExtractionStatus);
-        Assert.Equal("NEEDS_REVIEW", result.Value.Documents.Single(d => d.Id == 2).ExtractionStatus);
+        Assert.Equal("PENDIENTE_REVISION", result.Value.Documents.Single(d => d.Id == 2).ExtractionStatus);
     }
 }

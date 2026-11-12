@@ -23,4 +23,14 @@ public interface IContainerService
     Task<Result> TriggerInspectionAsync(int containerId, CancellationToken ct);
 
     Task<Result<IReadOnlyList<HitoResponse>>> GetHitosAsync(int containerId, int userId, CancellationToken ct);
+
+    Task<Result> MarkRetiroAsync(int containerId, int userId, CancellationToken ct);
+
+    Task<Result> MarkDevolucionVaciaAsync(int containerId, int userId, CancellationToken ct);
+
+    Task<Result> ConfirmarArriboRealAsync(int containerId, int userId, DateTimeOffset fechaArriboReal, CancellationToken ct);
+
+    Task<Result> UpdateDiasLibresAsync(int containerId, int userId, int diasLibresDemurrage, int diasLibresDetention, CancellationToken ct);
+
+    Task<Result> UpdateDatosExtraidosAsync(int containerId, int userId, UpdateContainerMetadataRequest request, CancellationToken ct);
 }
