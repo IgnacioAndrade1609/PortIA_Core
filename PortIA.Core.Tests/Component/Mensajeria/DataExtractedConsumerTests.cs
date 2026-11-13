@@ -17,6 +17,7 @@ public class DataExtractedConsumerTests
     private readonly IContainerRepository _containerRepository;
     private readonly IHitoRepository _hitoRepository;
     private readonly ITerminalRepository _terminalRepository;
+    private readonly IDocumentoRepository _documentoRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IInspectContainerPublisher _inspectContainerPublisher;
     private readonly DataExtractedConsumer _sut;
@@ -33,11 +34,16 @@ public class DataExtractedConsumerTests
         _containerRepository = Substitute.For<IContainerRepository>();
         _hitoRepository = Substitute.For<IHitoRepository>();
         _terminalRepository = Substitute.For<ITerminalRepository>();
+        _documentoRepository = Substitute.For<IDocumentoRepository>();
 
         _unitOfWork = Substitute.For<IUnitOfWork>();
         _unitOfWork.Containers.Returns(_containerRepository);
         _unitOfWork.Hitos.Returns(_hitoRepository);
         _unitOfWork.Terminales.Returns(_terminalRepository);
+        _unitOfWork.Documentos.Returns(_documentoRepository);
+
+        _documentoRepository.GetByIdAsync(1, Arg.Any<CancellationToken>())
+            .Returns(new Documento { Id = 1, IdCargaDocumentos = 1, TipoDocumento = "BL", StorageUrl = "docs/a.pdf", HuellaHash = "hash" });
 
         SetTerminalesQueryResult(TerminalesSeed);
 
@@ -134,5 +140,51 @@ public class DataExtractedConsumerTests
 
         await _containerRepository.Received(1).AddAsync(
             Arg.Is<Container>(c => c.IdTerminalLlegada == null), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Consume_WhenDocumentDoesNotExist_DoesNothing()
+    {
+        _documentoRepository.GetByIdAsync(1, Arg.Any<CancellationToken>()).Returns((Documento?)null);
+
+        await _sut.Consume(BuildContext(BuildEvento()));
+
+        await _containerRepository.DidNotReceive().AddAsync(Arg.Any<Container>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Consume_WithLowConfidence_MarksDocumentPendingReviewAndDoesNotCreateContainer()
+    {
+        var evento = BuildEvento() with { Confidence = 0.4 };
+
+        await _sut.Consume(BuildContext(evento));
+
+        await _containerRepository.DidNotReceive().AddAsync(Arg.Any<Container>(), Arg.Any<CancellationToken>());
+        await _inspectContainerPublisher.DidNotReceive().PublishAsync(Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Consume_WithLowConfidence_SavesExtractedDataSnapshotForLaterReview()
+    {
+        var evento = BuildEvento() with { Confidence = 0.4, ContainerNumber = "MSCU7654321" };
+        var documento = new Documento { Id = 1, IdCargaDocumentos = 1, TipoDocumento = "BL", StorageUrl = "docs/a.pdf", HuellaHash = "hash" };
+        _documentoRepository.GetByIdAsync(1, Arg.Any<CancellationToken>()).Returns(documento);
+
+        await _sut.Consume(BuildContext(evento));
+
+        Assert.Equal("PENDIENTE_REVISION", documento.EstadoExtraccion);
+        Assert.NotNull(documento.DatosExtraidosRaw);
+        Assert.Contains("MSCU7654321", documento.DatosExtraidosRaw);
+    }
+
+    [Fact]
+    public async Task Consume_WithHighConfidence_MarksDocumentCompleto()
+    {
+        var documento = new Documento { Id = 1, IdCargaDocumentos = 1, TipoDocumento = "BL", StorageUrl = "docs/a.pdf", HuellaHash = "hash" };
+        _documentoRepository.GetByIdAsync(1, Arg.Any<CancellationToken>()).Returns(documento);
+
+        await _sut.Consume(BuildContext(BuildEvento()));
+
+        Assert.Equal("COMPLETO", documento.EstadoExtraccion);
     }
 }

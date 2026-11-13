@@ -17,23 +17,32 @@ public class ShipmentsController(IShipmentService shipmentService) : ControllerB
     [ProducesResponseType(typeof(ShipmentCreatedResponse), StatusCodes.Status202Accepted)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> CreateShipment(IFormFile? file, CancellationToken ct)
+    public async Task<IActionResult> CreateShipment(List<IFormFile>? files, CancellationToken ct)
     {
-        var result = await CreateShipmentFromFileAsync(file, ct);
+        var result = await CreateShipmentFromFilesAsync(files, ct);
         return result.ToActionResult(this, response => Accepted(response));
     }
 
-    private async Task<Result<ShipmentCreatedResponse>> CreateShipmentFromFileAsync(IFormFile? file, CancellationToken ct)
+    private async Task<Result<ShipmentCreatedResponse>> CreateShipmentFromFilesAsync(List<IFormFile>? files, CancellationToken ct)
     {
         var userId = GetCurrentUserId();
-        await using var stream = file?.OpenReadStream() ?? Stream.Null;
-        return await shipmentService.CreateShipmentAsync(
-            stream,
-            file?.FileName ?? string.Empty,
-            file?.ContentType ?? string.Empty,
-            file?.Length ?? 0,
-            userId,
-            ct);
+        var archivos = files ?? [];
+        var streams = archivos.Select(f => f.OpenReadStream()).ToList();
+
+        try
+        {
+            var inputs = archivos
+                .Zip(streams, (f, s) => new ShipmentFileInput(s, f.FileName, f.ContentType, f.Length))
+                .ToList();
+            return await shipmentService.CreateShipmentAsync(inputs, userId, ct);
+        }
+        finally
+        {
+            foreach (var stream in streams)
+            {
+                await stream.DisposeAsync();
+            }
+        }
     }
 
     [HttpGet]
