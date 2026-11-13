@@ -31,7 +31,7 @@ public class TeamDocumentsServiceTests
         _unitOfWork.Documentos.Returns(_documentoRepository);
 
         _minioStorageClient = Substitute.For<IMinioStorageClient>();
-        _minioStorageClient.GetPresignedUrlAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+        _minioStorageClient.GetPresignedUrlAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns("https://minio.local/presigned");
 
         _validator = Substitute.For<IValidator<TeamDocumentsFilter>>();

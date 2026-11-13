@@ -50,6 +50,9 @@ public static class ServiceCollectionExtensions
                 cfg.Message<InspectContainer>(m => m.SetEntityName("inspect_container"));
                 cfg.Publish<InspectContainer>(p => p.ExchangeType = "fanout");
 
+                cfg.Message<ShipmentCreated>(m => m.SetEntityName("shipment_created"));
+                cfg.Publish<ShipmentCreated>(p => p.ExchangeType = "fanout");
+
                 cfg.ConfigureEndpoints(ctx, SnakeCaseEndpointNameFormatter.Instance);
             });
         });

@@ -10,9 +10,11 @@ using PortIA.Core.Infrastructure.Data.Entities;
 using PortIA.Core.Infrastructure.Data.Interfaces;
 using PortIA.Core.Infrastructure.Data.UnitOfWork;
 using PortIA.Core.Services.Common.Results;
+using PortIA.Core.Services.Component.Mensajeria.Events;
 using PortIA.Core.Services.Component.Shipments.DTOs;
 using PortIA.Core.Services.Component.Shipments.Services;
 using PortIA.Core.ExternalServices.Component.Storage.Interfaces;
+using IPublishEndpoint = MassTransit.IPublishEndpoint;
 
 public class ShipmentServiceTests
 {
@@ -21,6 +23,7 @@ public class ShipmentServiceTests
     private readonly IContainerRepository _containerRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMinioStorageClient _minioStorageService;
+    private readonly IPublishEndpoint _publishEndpoint;
     private readonly IValidator<CreateShipmentRequest> _createShipmentValidator;
     private readonly ShipmentService _sut;
 
@@ -36,9 +39,10 @@ public class ShipmentServiceTests
         _unitOfWork.Containers.Returns(_containerRepository);
 
         _minioStorageService = Substitute.For<IMinioStorageClient>();
+        _publishEndpoint = Substitute.For<IPublishEndpoint>();
         _createShipmentValidator = Substitute.For<IValidator<CreateShipmentRequest>>();
 
-        _sut = new ShipmentService(_unitOfWork, _minioStorageService, _createShipmentValidator, Substitute.For<ILogger<ShipmentService>>());
+        _sut = new ShipmentService(_unitOfWork, _minioStorageService, _createShipmentValidator, _publishEndpoint, Substitute.For<ILogger<ShipmentService>>());
 
         var emptyDocumentos = new List<Documento>().BuildMockDbSet();
         _documentoRepository.Query().Returns(emptyDocumentos);
@@ -67,6 +71,9 @@ public class ShipmentServiceTests
         _minioStorageService
             .UploadFileAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(ci => $"documentos/{ci.ArgAt<string>(1)}");
+        _minioStorageService
+            .GetPresignedUrlAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(ci => $"https://minio.local/{ci.ArgAt<string>(0)}");
 
         _cargaDocumentosRepository
             .AddAsync(Arg.Any<CargaDocumentos>(), Arg.Any<CancellationToken>())
@@ -165,6 +172,27 @@ public class ShipmentServiceTests
         Assert.Equal(3, result.Value.Documents.Count);
         Assert.All(result.Value.Documents, d => Assert.Equal("PENDIENTE", d.Status));
         await _cargaDocumentosRepository.Received(1).AddAsync(Arg.Any<CargaDocumentos>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CreateShipmentAsync_WithMultipleValidFiles_PublishesOneShipmentCreatedPerDocument()
+    {
+        SetValidationResult(isValid: true);
+        SetupSuccessfulPersistence(cargaId: 10, documentIds: [20, 21, 22]);
+
+        var files = new[]
+        {
+            BuildFileInput("a.pdf", "contenido-a"),
+            BuildFileInput("b.pdf", "contenido-b"),
+            BuildFileInput("c.pdf", "contenido-c"),
+        };
+
+        var result = await _sut.CreateShipmentAsync(files, userId: 7, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        await _publishEndpoint.Received(3).Publish(
+            Arg.Is<ShipmentCreated>(e => e.ShipmentId == 10 && e.DocumentType == "BL"),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]

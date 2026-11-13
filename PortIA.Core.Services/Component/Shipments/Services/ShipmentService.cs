@@ -2,12 +2,14 @@ namespace PortIA.Core.Services.Component.Shipments.Services;
 
 using System.Security.Cryptography;
 using FluentValidation;
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using PortIA.Core.Infrastructure.Data.Entities;
 using PortIA.Core.Infrastructure.Data.UnitOfWork;
 using PortIA.Core.Services.Common.DTOs;
 using PortIA.Core.Services.Common.Results;
+using PortIA.Core.Services.Component.Mensajeria.Events;
 using PortIA.Core.Services.Component.Shipments.DTOs;
 using PortIA.Core.Services.Component.Shipments.Interfaces;
 using PortIA.Core.Services.Component.Shipments.Mappers;
@@ -17,6 +19,7 @@ public class ShipmentService(
     IUnitOfWork unitOfWork,
     IMinioStorageClient minioService,
     IValidator<CreateShipmentRequest> createShipmentValidator,
+    IPublishEndpoint publishEndpoint,
     ILogger<ShipmentService> logger) : IShipmentService
 {
     private const int DefaultPageSize = 20;
@@ -48,7 +51,45 @@ public class ShipmentService(
             return Result<ShipmentCreatedResponse>.ValidationError(errores);
         }
 
-        return await PersistShipmentAsync(evaluaciones, userId, ct);
+        var persistResult = await PersistShipmentAsync(evaluaciones, userId, ct);
+
+        await PublishShipmentCreatedAsync(persistResult, ct);
+
+        return Result<ShipmentCreatedResponse>.Success(persistResult.Response);
+    }
+
+    private async Task PublishShipmentCreatedAsync(ShipmentPersistResult persistResult, CancellationToken ct)
+    {
+        foreach (var documento in persistResult.Documentos)
+        {
+            try
+            {
+                // El agente corre fuera de la red de MinIO: necesita una URL firmada, no el
+                // storagePath interno ("bucket/objeto").
+                var documentUrl = await minioService.GetPresignedUrlAsync(documento.StoragePath, 1800, ct);
+
+                await publishEndpoint.Publish(
+                    new ShipmentCreated(
+                        persistResult.Response.ShipmentId,
+                        documento.DocumentId,
+                        documentUrl,
+                        "BL"),
+                    ct);
+
+                logger.LogInformation(
+                    "ShipmentCreated publicado (shipmentId={ShipmentId}, documentId={DocumentId})",
+                    persistResult.Response.ShipmentId,
+                    documento.DocumentId);
+            }
+            catch (Exception ex)
+            {
+                // El documento ya quedó persistido: no rompemos la subida si RabbitMQ falla.
+                logger.LogError(ex,
+                    "No se pudo publicar ShipmentCreated (shipmentId={ShipmentId}, documentId={DocumentId})",
+                    persistResult.Response.ShipmentId,
+                    documento.DocumentId);
+            }
+        }
     }
 
     public async Task<Result<PagedResult<ShipmentSummaryResponse>>> GetShipmentsAsync(
@@ -138,6 +179,12 @@ public class ShipmentService(
 
     private sealed record EvaluacionArchivo(ShipmentFileInput Input, bool EsValido, string? Motivo, string? Hash, bool EsDuplicado);
 
+    private sealed record DocumentoPersistido(int DocumentId, string StoragePath);
+
+    private sealed record ShipmentPersistResult(
+        ShipmentCreatedResponse Response,
+        IReadOnlyList<DocumentoPersistido> Documentos);
+
     private static async Task<string> ComputeFileHashAsync(Stream fileStream, CancellationToken ct)
     {
         using var sha256 = SHA256.Create();
@@ -152,7 +199,7 @@ public class ShipmentService(
         return hash;
     }
 
-    private async Task<Result<ShipmentCreatedResponse>> PersistShipmentAsync(
+    private async Task<ShipmentPersistResult> PersistShipmentAsync(
         List<EvaluacionArchivo> evaluaciones, int userId, CancellationToken ct)
     {
         var archivosValidos = evaluaciones.Where(e => e.EsValido).ToList();
@@ -189,7 +236,15 @@ public class ShipmentService(
                     : new UploadedDocumentResult(e.Input.FileName, e.EsDuplicado ? "DUPLICADO" : "RECHAZADO", null, e.Motivo))
                 .ToList();
 
-            return Result<ShipmentCreatedResponse>.Success(cargaDocumentos.ToCreatedResponse(resultadosPorArchivo));
+            // Se materializa después del SaveChanges para tener los Ids generados por la BD.
+            var documentosPersistidos = archivosValidos
+                .Select(e => documentosPorEvaluacion[e])
+                .Select(documento => new DocumentoPersistido(documento.Id, documento.StorageUrl))
+                .ToList();
+
+            return new ShipmentPersistResult(
+                cargaDocumentos.ToCreatedResponse(resultadosPorArchivo),
+                documentosPersistidos);
         }
         catch (Exception ex)
         {

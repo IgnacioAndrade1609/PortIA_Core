@@ -175,7 +175,8 @@ public class DocumentReviewService(
                 break;
             }
         }
-        ciudad = ciudad.Trim();
+        // Algunos BL traen "Arica, Chile" o "San Antonio (Chile)"; basta con la ciudad.
+        ciudad = ciudad.Split(',')[0].Split('(')[0].Trim();
 
         var candidato = terminales.FirstOrDefault(t => t.NombreTerminal.Contains(ciudad, StringComparison.OrdinalIgnoreCase));
         return candidato?.Id;

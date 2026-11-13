@@ -73,7 +73,7 @@ public class TeamDocumentsService(
         var respuesta = new List<AnalystDocumentResponse>();
         foreach (var d in documentos)
         {
-            var downloadUrl = await minioStorageClient.GetPresignedUrlAsync(d.StorageUrl, ct);
+            var downloadUrl = await minioStorageClient.GetPresignedUrlAsync(d.StorageUrl, 900, ct);
             respuesta.Add(new AnalystDocumentResponse(
                 d.Id,
                 d.TipoDocumento,
