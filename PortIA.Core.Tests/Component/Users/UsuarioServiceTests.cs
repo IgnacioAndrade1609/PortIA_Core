@@ -33,7 +33,13 @@ public class UsuarioServiceTests
         _passwordHasher = Substitute.For<IPasswordHasher>();
         _validator = Substitute.For<IValidator<CreateUsuarioRequest>>();
 
-        _sut = new UsuarioService(_unitOfWork, _passwordHasher, _validator, Substitute.For<ILogger<UsuarioService>>());
+        _sut = new UsuarioService(
+            _unitOfWork,
+            _passwordHasher,
+            _validator,
+            Substitute.For<IValidator<UpdateUsuarioRequest>>(),
+            Substitute.For<IValidator<UpdateUsuarioRoleRequest>>(),
+            Substitute.For<ILogger<UsuarioService>>());
 
         SetValidationResult(isValid: true);
     }
@@ -103,7 +109,7 @@ public class UsuarioServiceTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(request.Email, result.Value.Email);
-        Assert.Equal(rol.NombreRol, result.Value.Rol);
+        Assert.Equal(rol.NombreRol, result.Value.Role.Name);
         await _usuarioRepository.Received(1).AddAsync(
             Arg.Is<Usuario>(u => u.Email == request.Email && u.PasswordHash == "hashed-password"),
             Arg.Any<CancellationToken>());

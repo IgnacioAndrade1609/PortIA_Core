@@ -112,7 +112,8 @@ public class DataExtractedConsumer(
                 break;
             }
         }
-        ciudad = ciudad.Trim();
+        // Algunos BL traen "Arica, Chile" o "San Antonio (Chile)"; basta con la ciudad.
+        ciudad = ciudad.Split(',')[0].Split('(')[0].Trim();
 
         var candidatos = terminales
             .Where(t => t.NombreTerminal.Contains(ciudad, StringComparison.OrdinalIgnoreCase))
