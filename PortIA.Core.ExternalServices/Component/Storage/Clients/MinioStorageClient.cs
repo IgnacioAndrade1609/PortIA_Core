@@ -38,6 +38,22 @@ public class MinioStorageClient(IMinioClient minioClient) : IMinioStorageClient
         return $"{BucketName}/{objectName}";
     }
 
+    public async Task<string> GetPresignedUrlAsync(string storagePath, CancellationToken ct)
+    {
+        var parts = storagePath.Split('/', 2);
+        if (parts.Length < 2) return string.Empty;
+
+        var bucket = parts[0];
+        var objectName = parts[1];
+
+        var presignedArgs = new PresignedGetObjectArgs()
+            .WithBucket(bucket)
+            .WithObject(objectName)
+            .WithExpiry(60 * 15);
+
+        return await minioClient.PresignedGetObjectAsync(presignedArgs);
+    }
+
     public async Task RemoveFileAsync(string storagePath, CancellationToken ct)
     {
         try

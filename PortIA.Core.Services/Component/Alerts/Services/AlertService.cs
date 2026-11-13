@@ -20,6 +20,10 @@ public class AlertService(
         {
             query = query.Where(a => a.Container.AsignadoA == userId);
         }
+        else if (normalizedRole is "BOSS" or "JEFE")
+        {
+            query = query.Where(a => a.Container.Asignado != null && a.Container.Asignado.JefeId == userId);
+        }
 
         if (leida.HasValue)
         {

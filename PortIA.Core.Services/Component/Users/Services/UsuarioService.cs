@@ -16,15 +16,17 @@ public class UsuarioService(
     IValidator<CreateUsuarioRequest> createValidator,
     IValidator<UpdateUsuarioRequest> updateValidator,
     IValidator<UpdateUsuarioRoleRequest> roleValidator,
+    IValidator<UpdateUsuarioSupervisorRequest> supervisorValidator,
     ILogger<UsuarioService> logger) : IUsuarioService
 {
     public async Task<Result<PagedResult<UserDto>>> GetPagedAsync(UserQueryFilter filter, CancellationToken ct)
     {
         // 1. Recibimos la tupla de datos crudos y el conteo total desde la infraestructura
         var (items, totalItems) = await unitOfWork.Usuarios.GetPagedAsync(
-            filter.Search, 
-            filter.RoleId, 
-            filter.Active, 
+            filter.Search,
+            filter.RoleId,
+            filter.JefeId,
+            filter.Active,
             filter.Page, 
             filter.PageSize, 
             ct);
@@ -166,6 +168,58 @@ public class UsuarioService(
 
         await unitOfWork.SaveChangesAsync(ct);
         logger.LogInformation("Rol de usuario actualizado (userId={UserId}, newRoleId={RolId})", usuario.Id, rol.Id);
+
+        return Result<UserDto>.Success(usuario.ToDto());
+    }
+
+    public async Task<Result<UserDto>> UpdateSupervisorAsync(int id, UpdateUsuarioSupervisorRequest request, CancellationToken ct)
+    {
+        var validation = await supervisorValidator.ValidateAsync(request, ct);
+        if (!validation.IsValid)
+            return Result<UserDto>.ValidationError(validation.ToDictionary());
+
+        var usuario = await unitOfWork.Usuarios.GetByIdWithRoleAsync(id, ct);
+        if (usuario is null)
+            return Result<UserDto>.NotFound($"No se encontró el usuario con ID {id}.");
+
+        if (!usuario.Rol.NombreRol.Equals("Analista", StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogWarning("UpdateUsuarioSupervisor rechazado: usuario {UserId} no tiene rol Analista", id);
+            return Result<UserDto>.BusinessError("Solo se puede asignar un jefe a un usuario con rol Analista.");
+        }
+
+        if (!request.JefeId.HasValue)
+        {
+            usuario.JefeId = null;
+            usuario.Jefe = null;
+
+            await unitOfWork.SaveChangesAsync(ct);
+            logger.LogInformation("Supervisor removido (userId={UserId})", usuario.Id);
+
+            return Result<UserDto>.Success(usuario.ToDto());
+        }
+
+        if (request.JefeId.Value == id)
+        {
+            logger.LogWarning("UpdateUsuarioSupervisor rechazado: usuario {UserId} no puede ser su propio jefe", id);
+            return Result<UserDto>.BusinessError("Un usuario no puede ser su propio jefe.");
+        }
+
+        var jefe = await unitOfWork.Usuarios.GetByIdWithRoleAsync(request.JefeId.Value, ct);
+        if (jefe is null)
+            return Result<UserDto>.NotFound($"No se encontró el jefe con ID {request.JefeId.Value}.");
+
+        if (!jefe.Rol.NombreRol.Equals("Jefe", StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogWarning("UpdateUsuarioSupervisor rechazado: usuario {JefeId} no tiene rol Jefe", jefe.Id);
+            return Result<UserDto>.BusinessError("El supervisor indicado debe tener rol Jefe.");
+        }
+
+        usuario.JefeId = jefe.Id;
+        usuario.Jefe = jefe;
+
+        await unitOfWork.SaveChangesAsync(ct);
+        logger.LogInformation("Supervisor de usuario actualizado (userId={UserId}, jefeId={JefeId})", usuario.Id, jefe.Id);
 
         return Result<UserDto>.Success(usuario.ToDto());
     }

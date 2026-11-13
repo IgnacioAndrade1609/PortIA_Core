@@ -14,4 +14,11 @@ public class UserDto
     public RoleSummaryDto Role { get; set; } = null!;
     public bool Active { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+    public SupervisorSummaryDto? Supervisor { get; set; }
+}
+
+public class SupervisorSummaryDto
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = null!;
 }

@@ -3,6 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 using PortIA.Core.Services.Common.Security;
 using PortIA.Core.Services.Component.Alerts.Interfaces;
 using PortIA.Core.Services.Component.Alerts.Services;
+using PortIA.Core.Services.Component.Audit.Interfaces;
+using PortIA.Core.Services.Component.Audit.Services;
 using PortIA.Core.Services.Component.Auth.Interfaces;
 using PortIA.Core.Services.Component.Auth.Services;
 using PortIA.Core.Services.Component.Containers.Interfaces;
@@ -14,6 +16,8 @@ using PortIA.Core.Services.Component.Riesgo.Interfaces;
 using PortIA.Core.Services.Component.Riesgo.Services;
 using PortIA.Core.Services.Component.Shipments.Interfaces;
 using PortIA.Core.Services.Component.Shipments.Services;
+using PortIA.Core.Services.Component.Teams.Interfaces;
+using PortIA.Core.Services.Component.Teams.Services;
 using PortIA.Core.Services.Component.Users.Interfaces;
 using PortIA.Core.Services.Component.Users.Services;
 
@@ -37,6 +41,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUsuarioService, UsuarioService>();
+        services.AddScoped<ITeamDashboardService, TeamDashboardService>();
+        services.AddScoped<ITeamDocumentsService, TeamDocumentsService>();
+        services.AddScoped<IAuditService, AuditService>();
 
         services.AddValidatorsFromAssemblyContaining<ServicesAssemblyMarker>(ServiceLifetime.Scoped);
 
