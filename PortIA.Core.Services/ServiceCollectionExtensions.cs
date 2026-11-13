@@ -16,6 +16,8 @@ using PortIA.Core.Services.Component.Shipments.Interfaces;
 using PortIA.Core.Services.Component.Shipments.Services;
 using PortIA.Core.Services.Component.Users.Interfaces;
 using PortIA.Core.Services.Component.Users.Services;
+using PortIA.Core.Services.Component.Notifications.Interfaces;
+using PortIA.Core.Services.Component.Notifications.Services;
 
 namespace PortIA.Core.Services;
 
@@ -37,6 +39,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUsuarioService, UsuarioService>();
+
+        services.AddScoped<INotificationService, NotificationService>();
+
+  
 
         services.AddValidatorsFromAssemblyContaining<ServicesAssemblyMarker>(ServiceLifetime.Scoped);
 

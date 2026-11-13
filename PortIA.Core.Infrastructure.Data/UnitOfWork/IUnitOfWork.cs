@@ -19,6 +19,9 @@ public interface IUnitOfWork
     ITipoAlertaRepository TiposAlerta { get; }
     IAlertaRepository Alertas { get; }
     INavieraRepository Navieras { get; }
+    ILogNotificacionRepository LogsNotificacion { get; }
+
+  
 
     Task<int> SaveChangesAsync(CancellationToken ct);
 }
