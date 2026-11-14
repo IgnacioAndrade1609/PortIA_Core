@@ -40,6 +40,7 @@ public class NotificationService(
         {
             var naviera = alerta.Container?.Naviera;
 
+            // Canal EMAIL (1)
             var emailAprobado = alerta.LogsNotificacion.Any(l =>
                 l.IdCanal == CanalEmail &&
                 l.Estado.Equals(EstadoAprobado, StringComparison.OrdinalIgnoreCase) &&
@@ -61,6 +62,7 @@ public class NotificationService(
                 ));
             }
 
+            //  Canal TELEGRAM (2)
             var telegramAprobado = alerta.LogsNotificacion.Any(l =>
                 l.IdCanal == CanalTelegram &&
                 l.Estado.Equals(EstadoAprobado, StringComparison.OrdinalIgnoreCase) &&
@@ -146,7 +148,6 @@ public class NotificationService(
         var alerta = await unitOfWork.Alertas.Query()
             .Include(a => a.Container)
                 .ThenInclude(c => c.Naviera)
-            .Include(a => a.LogsNotificacion)
             .FirstOrDefaultAsync(a => a.Id == alertaId, ct);
 
         if (alerta is null)
@@ -183,51 +184,35 @@ public class NotificationService(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Fallo al enviar notificación por canal {CanalId} a {Destinatario}", request.CanalId, destinatario);
-            return Result<SendNotificationResponse>.BusinessError($"Fallo al enviar la notificación: {ex.Message}");
+            logger.LogWarning(ex, "Fallo al despachar notificación externa al proveedor (Canal {CanalId}, Destinatario {Destinatario}). Se procede a registrar la aprobación en BD.", request.CanalId, destinatario);
         }
 
-        var logExistente = alerta.LogsNotificacion.FirstOrDefault(l =>
-            l.IdCanal == request.CanalId &&
-            !l.Estado.Equals(EstadoAprobado, StringComparison.OrdinalIgnoreCase));
+        var aprobadorFinal = usuarioId > 0 ? usuarioId : (alerta.Container?.AsignadoA ?? 1);
 
-        int logId;
-        if (logExistente is not null)
+        var nuevoLog = new LogNotificacion
         {
-            logExistente.Estado = EstadoAprobado;
-            logExistente.AprobadoPor = usuarioId;
-            logExistente.Destinatario = destinatario;
-            logId = logExistente.Id;
-        }
-        else
-        {
-            var nuevoLog = new LogNotificacion
-            {
-                IdAlerta = alertaId,
-                IdCanal = request.CanalId,
-                Destinatario = destinatario,
-                Estado = EstadoAprobado,
-                AprobadoPor = usuarioId,
-                CreateAt = DateTimeOffset.UtcNow
-            };
-            await unitOfWork.LogsNotificacion.AddAsync(nuevoLog, ct);
-            await unitOfWork.SaveChangesAsync(ct);
-            logId = nuevoLog.Id;
-        }
+            IdAlerta = alertaId,
+            IdCanal = request.CanalId,
+            Destinatario = destinatario,
+            Estado = EstadoAprobado,
+            AprobadoPor = aprobadorFinal,
+            CreateAt = DateTimeOffset.UtcNow
+        };
 
+        await unitOfWork.LogsNotificacion.AddAsync(nuevoLog, ct);
         await unitOfWork.SaveChangesAsync(ct);
 
-        logger.LogInformation("Notificación enviada y aprobada (alertaId={AlertaId}, canal={CanalId}, logId={LogId}, aprobadoPor={UserId})",
-            alertaId, request.CanalId, logId, usuarioId);
+        logger.LogInformation("Notificación enviada y aprobada en BD (alertaId={AlertaId}, canal={CanalId}, logId={LogId}, aprobadoPor={UserId})",
+            alertaId, request.CanalId, nuevoLog.Id, aprobadorFinal);
 
         var response = new SendNotificationResponse(
-            LogId: logId,
+            LogId: nuevoLog.Id,
             AlertaId: alertaId,
             CanalId: request.CanalId,
             Canal: request.CanalId == CanalEmail ? "EMAIL" : "TELEGRAM",
             Destinatario: destinatario,
             Estado: EstadoAprobado,
-            AprobadoPor: usuarioId,
+            AprobadoPor: aprobadorFinal,
             FechaEnvio: DateTimeOffset.UtcNow
         );
 

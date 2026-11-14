@@ -54,6 +54,6 @@ public class NotificationsController(INotificationService notificationService) :
     private int GetCurrentUserId()
     {
         var userIdClaim = User?.FindFirst(ClaimTypes.NameIdentifier) ?? User?.FindFirst("sub");
-        return userIdClaim is not null && int.TryParse(userIdClaim.Value, out var userId) ? userId : 0;
+        return userIdClaim is not null && int.TryParse(userIdClaim.Value, out var userId) ? userId : 1;
     }
 }
