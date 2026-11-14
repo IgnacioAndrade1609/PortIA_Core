@@ -20,6 +20,7 @@ public class UnitOfWork(PortIACoreDbContext dbContext) : IUnitOfWork
     private ITipoAlertaRepository? _tiposAlerta;
     private IAlertaRepository? _alertas;
     private INavieraRepository? _navieras;
+    private IPaisRepository? _paises;
     private ILogNotificacionRepository? _logsNotificacion;
 
     public ICargaDocumentosRepository CargasDocumentos => _cargasDocumentos ??= new CargaDocumentosRepository(dbContext);
@@ -37,6 +38,7 @@ public class UnitOfWork(PortIACoreDbContext dbContext) : IUnitOfWork
     public ITipoAlertaRepository TiposAlerta => _tiposAlerta ??= new TipoAlertaRepository(dbContext);
     public IAlertaRepository Alertas => _alertas ??= new AlertaRepository(dbContext);
     public INavieraRepository Navieras => _navieras ??= new NavieraRepository(dbContext);
+    public IPaisRepository Paises => _paises ??= new PaisRepository(dbContext);
     public ILogNotificacionRepository LogsNotificacion => _logsNotificacion ??= new LogNotificacionRepository(dbContext);
 
     public Task<int> SaveChangesAsync(CancellationToken ct) => dbContext.SaveChangesAsync(ct);

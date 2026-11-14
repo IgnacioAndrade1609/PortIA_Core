@@ -19,6 +19,7 @@ public interface IUnitOfWork
     ITipoAlertaRepository TiposAlerta { get; }
     IAlertaRepository Alertas { get; }
     INavieraRepository Navieras { get; }
+    IPaisRepository Paises { get; }
     ILogNotificacionRepository LogsNotificacion { get; }
 
   

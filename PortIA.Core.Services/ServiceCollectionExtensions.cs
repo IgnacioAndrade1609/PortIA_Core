@@ -20,6 +20,8 @@ using PortIA.Core.Services.Component.Riesgo.Interfaces;
 using PortIA.Core.Services.Component.Riesgo.Services;
 using PortIA.Core.Services.Component.Shipments.Interfaces;
 using PortIA.Core.Services.Component.Shipments.Services;
+using PortIA.Core.Services.Component.Terminales.Interfaces;
+using PortIA.Core.Services.Component.Terminales.Services;
 using PortIA.Core.Services.Component.Teams.Interfaces;
 using PortIA.Core.Services.Component.Teams.Services;
 using PortIA.Core.Services.Component.Users.Interfaces;
@@ -46,6 +48,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUsuarioService, UsuarioService>();
         services.AddScoped<INavieraService, NavieraService>();
+        services.AddScoped<ITerminalService, TerminalService>();
         services.AddScoped<ITeamDashboardService, TeamDashboardService>();
         services.AddScoped<ITeamDocumentsService, TeamDocumentsService>();
         services.AddScoped<IAuditService, AuditService>();
