@@ -19,6 +19,7 @@ public class ContainerRepository(PortIACoreDbContext dbContext) : IContainerRepo
             .Include(c => c.Naviera)
             .Include(c => c.TerminalOrigen)
             .Include(c => c.TerminalLlegada)
+            .Include(c => c.Asignado)
             .FirstOrDefaultAsync(c => c.Id == id, ct);
 
     public IQueryable<Container> Query() =>

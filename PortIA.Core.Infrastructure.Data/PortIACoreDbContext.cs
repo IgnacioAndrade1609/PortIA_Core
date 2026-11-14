@@ -93,11 +93,14 @@ public class PortIACoreDbContext(DbContextOptions<PortIACoreDbContext> options) 
             e.Property(x => x.Email).HasColumnName("EMAIL").HasMaxLength(250).IsRequired();
             e.Property(x => x.PasswordHash).HasColumnName("PASSWORD_HASH").HasMaxLength(255).IsRequired();
             e.Property(x => x.RolId).HasColumnName("ROL_ID");
+            e.Property(x => x.JefeId).HasColumnName("JEFE_ID");
             e.Property(x => x.Creacion).HasColumnName("CREACION").HasColumnType("timestamptz").HasDefaultValueSql("NOW()");
             e.Property(x => x.Vigente).HasColumnName("VIGENTE").HasDefaultValue(true);
             e.HasIndex(x => x.Email).IsUnique();
             e.HasOne(x => x.Rol).WithMany(x => x.Usuarios).HasForeignKey(x => x.RolId)
                 .HasConstraintName("FK_USUARIO_ROL");
+            e.HasOne(x => x.Jefe).WithMany(x => x.Analistas).HasForeignKey(x => x.JefeId)
+                .HasConstraintName("FK_USUARIO_JEFE").OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Naviera>(e =>

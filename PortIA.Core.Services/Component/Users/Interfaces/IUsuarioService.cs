@@ -12,5 +12,6 @@ public interface IUsuarioService
     Task<Result<UserDto>> UpdateAsync(int id, UpdateUsuarioRequest request, CancellationToken ct);
     Task<Result<UserDto>> UpdateStatusAsync(int id, UpdateUsuarioStatusRequest request, int currentUserId, CancellationToken ct);
     Task<Result<UserDto>> UpdateRoleAsync(int id, UpdateUsuarioRoleRequest request, int currentUserId, CancellationToken ct);
+    Task<Result<UserDto>> UpdateSupervisorAsync(int id, UpdateUsuarioSupervisorRequest request, CancellationToken ct);
     Task<Result<IEnumerable<RoleDto>>> GetRolesAsync(CancellationToken ct);
 }

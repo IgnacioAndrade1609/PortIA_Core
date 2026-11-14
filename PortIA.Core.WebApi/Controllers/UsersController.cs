@@ -87,6 +87,19 @@ public class UsersController(IUsuarioService usuarioService) : ControllerBase
         return result.ToActionResult(this, Ok);
     }
 
+    [HttpPut("{id:int}/supervisor")]
+    [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> UpdateSupervisor(int id, UpdateUsuarioSupervisorRequest request, CancellationToken ct)
+    {
+        var result = await usuarioService.UpdateSupervisorAsync(id, request, ct);
+        return result.ToActionResult(this, Ok);
+    }
+
     private int GetCurrentUserId()
     {
         var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;

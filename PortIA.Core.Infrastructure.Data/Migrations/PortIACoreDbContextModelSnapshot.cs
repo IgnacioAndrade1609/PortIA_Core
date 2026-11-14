@@ -1034,6 +1034,10 @@ namespace PortIA.Core.Infrastructure.Data.Migrations
                         .HasColumnType("character varying(250)")
                         .HasColumnName("EMAIL");
 
+                    b.Property<int?>("JefeId")
+                        .HasColumnType("integer")
+                        .HasColumnName("JEFE_ID");
+
                     b.Property<string>("NombreUsuario")
                         .IsRequired()
                         .HasMaxLength(250)
@@ -1060,6 +1064,8 @@ namespace PortIA.Core.Infrastructure.Data.Migrations
 
                     b.HasIndex("Email")
                         .IsUnique();
+
+                    b.HasIndex("JefeId");
 
                     b.HasIndex("RolId");
 
@@ -1269,12 +1275,20 @@ namespace PortIA.Core.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("PortIA.Core.Infrastructure.Data.Entities.Usuario", b =>
                 {
+                    b.HasOne("PortIA.Core.Infrastructure.Data.Entities.Usuario", "Jefe")
+                        .WithMany("Analistas")
+                        .HasForeignKey("JefeId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("FK_USUARIO_JEFE");
+
                     b.HasOne("PortIA.Core.Infrastructure.Data.Entities.Rol", "Rol")
                         .WithMany("Usuarios")
                         .HasForeignKey("RolId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("FK_USUARIO_ROL");
+
+                    b.Navigation("Jefe");
 
                     b.Navigation("Rol");
                 });
@@ -1350,6 +1364,11 @@ namespace PortIA.Core.Infrastructure.Data.Migrations
             modelBuilder.Entity("PortIA.Core.Infrastructure.Data.Entities.TipoAlerta", b =>
                 {
                     b.Navigation("Alertas");
+                });
+
+            modelBuilder.Entity("PortIA.Core.Infrastructure.Data.Entities.Usuario", b =>
+                {
+                    b.Navigation("Analistas");
                 });
 #pragma warning restore 612, 618
         }

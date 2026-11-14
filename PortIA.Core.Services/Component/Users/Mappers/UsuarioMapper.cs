@@ -25,7 +25,12 @@ public static class UsuarioMapper
             Name = usuario.Rol.NombreRol
         },
         Active = usuario.Vigente,
-        CreatedAt = usuario.Creacion
+        CreatedAt = usuario.Creacion,
+        Supervisor = usuario.Jefe is null ? null : new SupervisorSummaryDto
+        {
+            Id = usuario.Jefe.Id,
+            Name = usuario.Jefe.NombreUsuario
+        }
     };
 
     public static RoleDto ToDto(this Rol rol) => new()

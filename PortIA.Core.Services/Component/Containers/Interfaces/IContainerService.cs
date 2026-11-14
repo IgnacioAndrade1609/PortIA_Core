@@ -14,6 +14,7 @@ public interface IContainerService
         int? originTerminalId,
         int? destinationTerminalId,
         int? assignedTo,
+        int? jefeId,
         bool? managed,
         bool? needsReview,
         DateTime? fromDate,
@@ -22,7 +23,7 @@ public interface IContainerService
 
     Task<Result> TriggerInspectionAsync(int containerId, CancellationToken ct);
 
-    Task<Result<IReadOnlyList<HitoResponse>>> GetHitosAsync(int containerId, int userId, CancellationToken ct);
+    Task<Result<IReadOnlyList<HitoResponse>>> GetHitosAsync(int containerId, int userId, string userRole, CancellationToken ct);
 
     Task<Result> MarkRetiroAsync(int containerId, int userId, CancellationToken ct);
 

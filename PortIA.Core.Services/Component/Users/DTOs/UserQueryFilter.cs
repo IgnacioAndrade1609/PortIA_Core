@@ -4,6 +4,7 @@ public class UserQueryFilter
 {
     public string? Search { get; set; }
     public int? RoleId { get; set; }
+    public int? JefeId { get; set; }
     public bool? Active { get; set; }
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 20;

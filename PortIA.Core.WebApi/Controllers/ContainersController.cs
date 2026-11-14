@@ -21,6 +21,7 @@ public class ContainersController(IContainerService containerService) : Controll
         [FromQuery] int? originTerminalId,
         [FromQuery] int? destinationTerminalId,
         [FromQuery] int? assignedTo,
+        [FromQuery] int? jefeId,
         [FromQuery] bool? managed,
         [FromQuery] bool? needsReview,
         [FromQuery] DateTime? fromDate,
@@ -39,6 +40,7 @@ public class ContainersController(IContainerService containerService) : Controll
             originTerminalId,
             destinationTerminalId,
             assignedTo,
+            jefeId,
             managed,
             needsReview,
             fromDate,
@@ -64,8 +66,9 @@ public class ContainersController(IContainerService containerService) : Controll
     public async Task<IActionResult> GetHitos(int id, CancellationToken ct)
     {
         var userId = GetCurrentUserId();
+        var userRole = GetCurrentUserRole();
 
-        var result = await containerService.GetHitosAsync(id, userId, ct);
+        var result = await containerService.GetHitosAsync(id, userId, userRole, ct);
 
         return result.ToActionResult(this, Ok);
     }

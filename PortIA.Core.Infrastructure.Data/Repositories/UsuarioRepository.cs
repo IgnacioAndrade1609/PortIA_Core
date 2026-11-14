@@ -18,32 +18,41 @@ public class UsuarioRepository(PortIACoreDbContext context) : IUsuarioRepository
     {
         return await context.Usuarios
             .Include(u => u.Rol)
+            .Include(u => u.Jefe)
             .FirstOrDefaultAsync(u => u.Id == id, ct);
     }
 
     public async Task<(IReadOnlyList<Usuario> Items, long TotalItems)> GetPagedAsync(
-        string? search, 
-        int? roleId, 
-        bool? active, 
-        int page, 
-        int pageSize, 
+        string? search,
+        int? roleId,
+        int? jefeId,
+        bool? active,
+        int page,
+        int pageSize,
         CancellationToken ct)
     {
         var query = context.Usuarios
             .Include(u => u.Rol)
+            .Include(u => u.Jefe)
             .AsNoTracking()
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            query = query.Where(u => 
-                u.NombreUsuario.Contains(search) || 
-                u.Email.Contains(search));
+            var searchLower = search.ToLower();
+            query = query.Where(u =>
+                u.NombreUsuario.ToLower().Contains(searchLower) ||
+                u.Email.ToLower().Contains(searchLower));
         }
 
         if (roleId.HasValue)
         {
             query = query.Where(u => u.RolId == roleId.Value);
+        }
+
+        if (jefeId.HasValue)
+        {
+            query = query.Where(u => u.JefeId == jefeId.Value);
         }
 
         if (active.HasValue)

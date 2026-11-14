@@ -34,6 +34,7 @@ public class ContainerService(
         int? originTerminalId,
         int? destinationTerminalId,
         int? assignedTo,
+        int? jefeId,
         bool? managed,
         bool? needsReview,
         DateTime? fromDate,
@@ -48,7 +49,7 @@ public class ContainerService(
             .Include(c => c.Riesgo)
             .Where(c => c.Vigente);
 
-        query = ApplyRoleBasedAccess(query, userId, userRole, assignedTo);
+        query = ApplyRoleBasedAccess(query, userId, userRole, assignedTo, jefeId);
         query = ApplyFilters(query, search, riskLevel, shippingLineId, originTerminalId, destinationTerminalId, managed, needsReview, fromDate, toDate);
 
         var projections = await query
@@ -89,14 +90,14 @@ public class ContainerService(
     public Task<Result> TriggerInspectionAsync(int containerId, CancellationToken ct) =>
         inspectContainerPublisher.PublishAsync(containerId, ct);
 
-    public async Task<Result<IReadOnlyList<HitoResponse>>> GetHitosAsync(int containerId, int userId, CancellationToken ct)
+    public async Task<Result<IReadOnlyList<HitoResponse>>> GetHitosAsync(int containerId, int userId, string userRole, CancellationToken ct)
     {
         var container = await unitOfWork.Containers.GetByIdAsync(containerId, ct);
 
-        if (container is null || container.AsignadoA != userId)
+        if (container is null || !CanViewContainer(container, userId, userRole))
         {
             logger.LogWarning(
-                "GetHitos rechazado: container {ContainerId} no existe o no pertenece a userId={UserId}",
+                "GetHitos rechazado: container {ContainerId} no existe o no es visible para userId={UserId}",
                 containerId, userId);
             return Result<IReadOnlyList<HitoResponse>>.NotFound($"El contenedor {containerId} no existe o no pertenece al usuario.");
         }
@@ -444,8 +445,21 @@ public class ContainerService(
         container.FechaLlegadaEstimada,
     });
 
+    private static bool CanViewContainer(Container container, int userId, string userRole)
+    {
+        var normalizedRole = userRole.ToUpperInvariant();
+
+        if (normalizedRole is "ANALIST" or "ANALISTA")
+            return container.AsignadoA == userId;
+
+        if (normalizedRole is "BOSS" or "JEFE")
+            return container.Asignado != null && container.Asignado.JefeId == userId;
+
+        return normalizedRole == "ADMIN";
+    }
+
     private static IQueryable<Container> ApplyRoleBasedAccess(
-        IQueryable<Container> query, int userId, string userRole, int? requestedAssignedTo)
+        IQueryable<Container> query, int userId, string userRole, int? requestedAssignedTo, int? requestedJefeId)
     {
         var normalizedRole = userRole.ToUpperInvariant();
 
@@ -456,16 +470,24 @@ public class ContainerService(
 
         if (normalizedRole == "BOSS" || normalizedRole == "JEFE")
         {
+            query = query.Where(c => c.Asignado != null && c.Asignado.JefeId == userId);
+
             if (requestedAssignedTo.HasValue)
             {
-                return query.Where(c => c.AsignadoA == requestedAssignedTo.Value);
+                query = query.Where(c => c.AsignadoA == requestedAssignedTo.Value);
             }
+
             return query;
+        }
+
+        if (requestedJefeId.HasValue)
+        {
+            query = query.Where(c => c.Asignado != null && c.Asignado.JefeId == requestedJefeId.Value);
         }
 
         if (requestedAssignedTo.HasValue)
         {
-            return query.Where(c => c.AsignadoA == requestedAssignedTo.Value);
+            query = query.Where(c => c.AsignadoA == requestedAssignedTo.Value);
         }
 
         return query;

@@ -94,18 +94,57 @@ public class ContainerServiceTests
     {
         _containerRepository.GetByIdAsync(1, Arg.Any<CancellationToken>()).Returns((Container?)null);
 
-        var result = await _sut.GetHitosAsync(1, userId: 7, CancellationToken.None);
+        var result = await _sut.GetHitosAsync(1, userId: 7, userRole: "Analista", CancellationToken.None);
 
         Assert.Equal(ResultStatus.NotFound, result.Status);
     }
 
     [Fact]
-    public async Task GetHitosAsync_WhenContainerBelongsToAnotherUser_ReturnsNotFound()
+    public async Task GetHitosAsync_WhenContainerBelongsToAnotherAnalista_ReturnsNotFound()
     {
         var container = new Container { Id = 1, NumeroContainer = "MSCU1234567", AsignadoA = 7 };
         _containerRepository.GetByIdAsync(1, Arg.Any<CancellationToken>()).Returns(container);
 
-        var result = await _sut.GetHitosAsync(1, userId: 99, CancellationToken.None);
+        var result = await _sut.GetHitosAsync(1, userId: 99, userRole: "Analista", CancellationToken.None);
+
+        Assert.Equal(ResultStatus.NotFound, result.Status);
+    }
+
+    [Fact]
+    public async Task GetHitosAsync_AsAdmin_CanViewAnyContainer()
+    {
+        var container = new Container { Id = 1, NumeroContainer = "MSCU1234567", AsignadoA = 7 };
+        _containerRepository.GetByIdAsync(1, Arg.Any<CancellationToken>()).Returns(container);
+        var mockContainers = new List<Container> { container }.BuildMockDbSet();
+        _containerRepository.Query().Returns(mockContainers);
+
+        var result = await _sut.GetHitosAsync(1, userId: 99, userRole: "Admin", CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task GetHitosAsync_AsJefeOfTheAssignedAnalista_CanViewContainer()
+    {
+        var analista = new Usuario { Id = 7, NombreUsuario = "Camila", JefeId = 2 };
+        var container = new Container { Id = 1, NumeroContainer = "MSCU1234567", AsignadoA = 7, Asignado = analista };
+        _containerRepository.GetByIdAsync(1, Arg.Any<CancellationToken>()).Returns(container);
+        var mockContainers = new List<Container> { container }.BuildMockDbSet();
+        _containerRepository.Query().Returns(mockContainers);
+
+        var result = await _sut.GetHitosAsync(1, userId: 2, userRole: "Jefe", CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task GetHitosAsync_AsJefeOfAnotherTeam_ReturnsNotFound()
+    {
+        var analista = new Usuario { Id = 7, NombreUsuario = "Camila", JefeId = 2 };
+        var container = new Container { Id = 1, NumeroContainer = "MSCU1234567", AsignadoA = 7, Asignado = analista };
+        _containerRepository.GetByIdAsync(1, Arg.Any<CancellationToken>()).Returns(container);
+
+        var result = await _sut.GetHitosAsync(1, userId: 99, userRole: "Jefe", CancellationToken.None);
 
         Assert.Equal(ResultStatus.NotFound, result.Status);
     }
@@ -130,7 +169,7 @@ public class ContainerServiceTests
         var mockContainers = new List<Container> { container }.BuildMockDbSet();
         _containerRepository.Query().Returns(mockContainers);
 
-        var result = await _sut.GetHitosAsync(1, userId: 7, CancellationToken.None);
+        var result = await _sut.GetHitosAsync(1, userId: 7, userRole: "Analista", CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(2, result.Value.Count);
@@ -467,5 +506,87 @@ public class ContainerServiceTests
             Arg.Is<LogAuditoria>(l => l.NombreEntidad == nameof(Container) && l.IdEntidad == 1 && l.Responsable == 7),
             Arg.Any<CancellationToken>());
         await _riskEngineService.DidNotReceive().RecalcularAsync(Arg.Any<Container>(), Arg.Any<CancellationToken>());
+    }
+
+    private static List<Container> BuildEquipoContainers()
+    {
+        var jefe1 = new Usuario { Id = 2, NombreUsuario = "Felipe Soto", JefeId = null };
+        var analista1DeJefe1 = new Usuario { Id = 1, NombreUsuario = "Camila Rojas", JefeId = 2 };
+        var jefe2 = new Usuario { Id = 7, NombreUsuario = "Pedro", JefeId = null };
+        var analista1DeJefe2 = new Usuario { Id = 6, NombreUsuario = "test", JefeId = 7 };
+
+        return new List<Container>
+        {
+            new() { Id = 1, NumeroContainer = "C1", AsignadoA = 1, Asignado = analista1DeJefe1, Vigente = true },
+            new() { Id = 2, NumeroContainer = "C2", AsignadoA = 6, Asignado = analista1DeJefe2, Vigente = true },
+            new() { Id = 3, NumeroContainer = "C3", AsignadoA = 2, Asignado = jefe1, Vigente = true },
+        };
+    }
+
+    [Fact]
+    public async Task GetContainersAsync_AsJefe_OnlyReturnsOwnTeamContainers()
+    {
+        var mockSet = BuildEquipoContainers().BuildMockDbSet();
+        _containerRepository.Query().Returns(mockSet);
+
+        var result = await _sut.GetContainersAsync(
+            userId: 2, userRole: "Jefe",
+            search: null, riskLevel: null, shippingLineId: null, originTerminalId: null, destinationTerminalId: null,
+            assignedTo: null, jefeId: null, managed: null, needsReview: null, fromDate: null, toDate: null,
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value);
+        Assert.Equal("C1", result.Value[0].ContainerNumber);
+    }
+
+    [Fact]
+    public async Task GetContainersAsync_AsJefe_IgnoresRequestedJefeIdFromAnotherJefe()
+    {
+        var mockSet = BuildEquipoContainers().BuildMockDbSet();
+        _containerRepository.Query().Returns(mockSet);
+
+        var result = await _sut.GetContainersAsync(
+            userId: 2, userRole: "Jefe",
+            search: null, riskLevel: null, shippingLineId: null, originTerminalId: null, destinationTerminalId: null,
+            assignedTo: null, jefeId: 7, managed: null, needsReview: null, fromDate: null, toDate: null,
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value);
+        Assert.Equal("C1", result.Value[0].ContainerNumber);
+    }
+
+    [Fact]
+    public async Task GetContainersAsync_AsAdmin_WithoutJefeId_ReturnsAllContainers()
+    {
+        var mockSet = BuildEquipoContainers().BuildMockDbSet();
+        _containerRepository.Query().Returns(mockSet);
+
+        var result = await _sut.GetContainersAsync(
+            userId: 99, userRole: "Admin",
+            search: null, riskLevel: null, shippingLineId: null, originTerminalId: null, destinationTerminalId: null,
+            assignedTo: null, jefeId: null, managed: null, needsReview: null, fromDate: null, toDate: null,
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(3, result.Value.Count);
+    }
+
+    [Fact]
+    public async Task GetContainersAsync_AsAdmin_WithJefeId_FiltersByThatTeam()
+    {
+        var mockSet = BuildEquipoContainers().BuildMockDbSet();
+        _containerRepository.Query().Returns(mockSet);
+
+        var result = await _sut.GetContainersAsync(
+            userId: 99, userRole: "Admin",
+            search: null, riskLevel: null, shippingLineId: null, originTerminalId: null, destinationTerminalId: null,
+            assignedTo: null, jefeId: 7, managed: null, needsReview: null, fromDate: null, toDate: null,
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value);
+        Assert.Equal("C2", result.Value[0].ContainerNumber);
     }
 }
