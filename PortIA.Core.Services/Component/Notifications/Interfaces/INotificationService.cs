@@ -5,11 +5,10 @@ using PortIA.Core.Services.Component.Notifications.DTOs;
 
 public interface INotificationService
 {
-    Task<Result<NotificationDraftResponse>> CreateDraftAsync(CreateDraftRequest request, CancellationToken ct);
 
-    Task<Result<NotificationDraftResponse>> UpdateDraftAsync(int id, UpdateDraftRequest request, CancellationToken ct);
+    Task<Result<List<AlertaPendienteResponse>>> GetAlertasPendientesByUsuarioAsync(int usuarioId, CancellationToken ct);
 
-    Task<Result<NotificationDraftResponse>> ApproveAsync(int id, int aprobadoPorUserId, ApproveNotificationRequest request, CancellationToken ct);
+    Task<Result<NotificationDetailResponse>> GetNotificationDetailAsync(int alertaId, int canalId, CancellationToken ct);
 
-    Task<Result<List<AlertaIdResponse>>> GetAlertasByUsuarioAsync(int usuarioId, CancellationToken ct);
+    Task<Result<SendNotificationResponse>> SendAsync(int alertaId, int usuarioId, SendNotificationRequest request, CancellationToken ct);
 }

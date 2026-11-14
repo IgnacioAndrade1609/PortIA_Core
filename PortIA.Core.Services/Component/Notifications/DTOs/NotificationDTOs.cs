@@ -1,44 +1,51 @@
 namespace PortIA.Core.Services.Component.Notifications.DTOs;
 
-
-public class CreateDraftRequest
+public class SendNotificationRequest
 {
-    public int AlertaId { get; set; }
+    public int CanalId { get; set; } = 1;
 
-    public int CanalId { get; set; }
-
-    public string Destinatario { get; set; } = null!;
-}
-
-public class UpdateDraftRequest
-{
     public string Mensaje { get; set; } = null!;
+
+    public string? Destinatario { get; set; }
+
+    public string? Asunto { get; set; }
 }
 
-public class ApproveNotificationRequest
-{
-    public string Mensaje { get; set; } = null!;
-}
+// ─── Responses ──────────────────────────────────────────────────────────────
 
-
-public record NotificationDraftResponse(
-    int Id,
-    int AlertaId,
-    string NumeroContainer,
-    string TipoAlerta,
-    string NivelRiesgo,
-    string Canal,
-    string Destinatario,
-    string Mensaje,
-    string Estado,
-    DateTimeOffset CreadoEn
-);
-
-public record AlertaIdResponse(
+public record AlertaPendienteResponse(
     int AlertaId,
     int ContainerId,
     string NumeroContainer,
+    int CanalId,
+    string Canal,
     string TipoAlerta,
     string NivelRiesgo,
-    DateTimeOffset CreadoEn
+    string Asunto,
+    string Destinatario,
+    DateTimeOffset FechaAlerta
+);
+
+
+public record NotificationDetailResponse(
+    int AlertaId,
+    int ContainerId,
+    string Contenedor,
+    int TipoCanal,
+    string NombreCanal,
+    string Asunto,
+    string Destinatario,
+    string Mensaje
+);
+
+
+public record SendNotificationResponse(
+    int LogId,
+    int AlertaId,
+    int CanalId,
+    string Canal,
+    string Destinatario,
+    string Estado,
+    int AprobadoPor,
+    DateTimeOffset FechaEnvio
 );

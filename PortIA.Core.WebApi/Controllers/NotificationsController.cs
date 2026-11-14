@@ -13,48 +13,41 @@ using PortIA.Core.WebApi.Extensions;
 public class NotificationsController(INotificationService notificationService) : ControllerBase
 {
 
-    [HttpPost("draft")]
-    [ProducesResponseType(typeof(NotificationDraftResponse), StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> CreateDraft(CreateDraftRequest request, CancellationToken ct)
-    {
-        var result = await notificationService.CreateDraftAsync(request, ct);
-        return result.ToActionResult(this, response => Created($"/api/v1/notifications/{response.Id}", response));
-    }
-
-
-    [HttpPut("draft/{id:int}")]
-    [ProducesResponseType(typeof(NotificationDraftResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> UpdateDraft(int id, UpdateDraftRequest request, CancellationToken ct)
-    {
-        var result = await notificationService.UpdateDraftAsync(id, request, ct);
-        return result.ToActionResult(this, Ok);
-    }
-
-
-    [HttpPost("{id:int}/approve")]
-    [ProducesResponseType(typeof(NotificationDraftResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Approve(int id, ApproveNotificationRequest request, CancellationToken ct)
-    {
-        var userId = GetCurrentUserId();
-        var result = await notificationService.ApproveAsync(id, userId, request, ct);
-        return result.ToActionResult(this, Ok);
-    }
-
-
     [HttpGet("alertas/mias")]
-    [ProducesResponseType(typeof(List<AlertaIdResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(List<AlertaPendienteResponse>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetMisAlertas(CancellationToken ct)
     {
         var userId = GetCurrentUserId();
-        var result = await notificationService.GetAlertasByUsuarioAsync(userId, ct);
+        var result = await notificationService.GetAlertasPendientesByUsuarioAsync(userId, ct);
+        return result.ToActionResult(this, Ok);
+    }
+
+
+    [HttpGet("{id:int}")]
+    [ProducesResponseType(typeof(NotificationDetailResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetNotificationDetail(
+        int id,
+        [FromQuery] int canalId = 1,
+        CancellationToken ct = default)
+    {
+        var result = await notificationService.GetNotificationDetailAsync(id, canalId, ct);
+        return result.ToActionResult(this, Ok);
+    }
+
+
+    [HttpPost("{id:int}/send")]
+    [ProducesResponseType(typeof(SendNotificationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Send(
+        int id,
+        [FromBody] SendNotificationRequest request,
+        CancellationToken ct)
+    {
+        var userId = GetCurrentUserId();
+        var result = await notificationService.SendAsync(id, userId, request, ct);
         return result.ToActionResult(this, Ok);
     }
 
