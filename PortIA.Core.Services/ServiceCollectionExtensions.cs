@@ -11,6 +11,8 @@ using PortIA.Core.Services.Component.Containers.Interfaces;
 using PortIA.Core.Services.Component.Containers.Services;
 using PortIA.Core.Services.Component.Mensajeria.Publishers;
 using PortIA.Core.Services.Component.Mensajeria.Publishers.Interfaces;
+using PortIA.Core.Services.Component.Navieras.Interfaces;
+using PortIA.Core.Services.Component.Navieras.Services;
 using PortIA.Core.Services.Component.Notifications.Interfaces;
 using PortIA.Core.Services.Component.Notifications.Services;
 using PortIA.Core.Services.Component.Riesgo.BackgroundServices;
@@ -43,6 +45,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUsuarioService, UsuarioService>();
+        services.AddScoped<INavieraService, NavieraService>();
         services.AddScoped<ITeamDashboardService, TeamDashboardService>();
         services.AddScoped<ITeamDocumentsService, TeamDocumentsService>();
         services.AddScoped<IAuditService, AuditService>();
