@@ -84,6 +84,7 @@ public class DocumentReviewService(
             DiasLibresDemurrage = request.DemurrageFreeDays ?? 0,
             DiasLibresDetention = request.DetentionFreeDays ?? 0,
             IdTerminalLlegada = idTerminalLlegada,
+            AsignadoA = userId,
         };
 
         await unitOfWork.Containers.AddAsync(container, ct);

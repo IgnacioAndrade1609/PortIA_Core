@@ -18,6 +18,7 @@ public class DataExtractedConsumerTests
     private readonly IHitoRepository _hitoRepository;
     private readonly ITerminalRepository _terminalRepository;
     private readonly IDocumentoRepository _documentoRepository;
+    private readonly ICargaDocumentosRepository _cargaRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IInspectContainerPublisher _inspectContainerPublisher;
     private readonly DataExtractedConsumer _sut;
@@ -41,6 +42,10 @@ public class DataExtractedConsumerTests
         _unitOfWork.Hitos.Returns(_hitoRepository);
         _unitOfWork.Terminales.Returns(_terminalRepository);
         _unitOfWork.Documentos.Returns(_documentoRepository);
+        _cargaRepository = Substitute.For<ICargaDocumentosRepository>();
+        _unitOfWork.CargasDocumentos.Returns(_cargaRepository);
+        var cargasMock = new List<CargaDocumentos> { new() { Id = 1, UserId = 7 } }.BuildMockDbSet();
+        _cargaRepository.Query().Returns(cargasMock);
 
         _documentoRepository.GetByIdAsync(1, Arg.Any<CancellationToken>())
             .Returns(new Documento { Id = 1, IdCargaDocumentos = 1, TipoDocumento = "BL", StorageUrl = "docs/a.pdf", HuellaHash = "hash" });

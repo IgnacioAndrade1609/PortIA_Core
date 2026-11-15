@@ -61,6 +61,11 @@ public class DataExtractedConsumer(
         var terminales = await unitOfWork.Terminales.Query().ToListAsync(context.CancellationToken);
         var idTerminalLlegada = ResolveTerminalLlegadaId(evento.PortOfDestination, terminales);
 
+        var idAnalista = await unitOfWork.CargasDocumentos.Query()
+            .Where(c => c.Id == evento.ShipmentId)
+            .Select(c => (int?)c.UserId)
+            .FirstOrDefaultAsync(context.CancellationToken);
+
         var container = new Container
         {
             IdCargaDocumentos = evento.ShipmentId,
@@ -72,6 +77,7 @@ public class DataExtractedConsumer(
             DiasLibresDemurrage = evento.DemurrageFreeDays ?? 0,
             DiasLibresDetention = evento.DetentionFreeDays ?? 0,
             IdTerminalLlegada = idTerminalLlegada,
+            AsignadoA = idAnalista,
         };
 
         await unitOfWork.Containers.AddAsync(container, context.CancellationToken);
