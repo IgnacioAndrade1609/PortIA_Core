@@ -42,8 +42,27 @@ public class TeamDocumentsService(
         if (!jefe.Rol.NombreRol.Equals("Jefe", StringComparison.OrdinalIgnoreCase))
             return Result<List<AnalystDocumentResponse>>.BusinessError("El usuario indicado no tiene rol Jefe.");
 
+        return await BuildDocumentsAsync(effectiveJefeId, filter, ct);
+    }
+
+    public async Task<Result<List<AnalystDocumentResponse>>> GetAllDocumentsAsync(
+        string callerRole, TeamDocumentsFilter filter, CancellationToken ct)
+    {
+        if (!callerRole.Equals("Admin", StringComparison.OrdinalIgnoreCase))
+            return Result<List<AnalystDocumentResponse>>.Unauthorized("Solo un administrador puede ver los documentos de todos los equipos.");
+
+        var validation = await validator.ValidateAsync(filter, ct);
+        if (!validation.IsValid)
+            return Result<List<AnalystDocumentResponse>>.ValidationError(validation.ToDictionary());
+
+        return await BuildDocumentsAsync(null, filter, ct);
+    }
+
+    private async Task<Result<List<AnalystDocumentResponse>>> BuildDocumentsAsync(
+        int? jefeId, TeamDocumentsFilter filter, CancellationToken ct)
+    {
         var query = unitOfWork.Documentos.Query()
-            .Where(d => d.CargaDocumentos.Usuario.JefeId == effectiveJefeId);
+            .Where(d => jefeId == null ? d.CargaDocumentos.Usuario.JefeId != null : d.CargaDocumentos.Usuario.JefeId == jefeId);
 
         if (filter.AnalystId.HasValue)
             query = query.Where(d => d.CargaDocumentos.UserId == filter.AnalystId.Value);

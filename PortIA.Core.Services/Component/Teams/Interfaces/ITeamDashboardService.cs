@@ -7,4 +7,7 @@ public interface ITeamDashboardService
 {
     Task<Result<TeamDashboardResponse>> GetDashboardAsync(
         int jefeId, int callerUserId, string callerRole, TeamDashboardFilter filter, CancellationToken ct);
+
+    Task<Result<TeamDashboardResponse>> GetAllDashboardAsync(
+        string callerRole, TeamDashboardFilter filter, CancellationToken ct);
 }

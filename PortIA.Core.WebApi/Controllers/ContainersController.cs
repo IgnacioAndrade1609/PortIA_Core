@@ -50,6 +50,24 @@ public class ContainersController(IContainerService containerService) : Controll
         return result.ToActionResult(this, Ok);
     }
 
+    [HttpPut("{id:int}/assign")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Assign(int id, [FromBody] AssignContainerRequest request, CancellationToken ct)
+    {
+        var roleClaim = User?.FindFirst(ClaimTypes.Role) ?? User?.FindFirst("role");
+        var idClaim = User?.FindFirst(ClaimTypes.NameIdentifier) ?? User?.FindFirst("sub");
+        if (roleClaim is null || idClaim is null || !int.TryParse(idClaim.Value, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await containerService.AssignAsync(id, request.AssignedTo, userId, roleClaim.Value, ct);
+        return result.ToActionResult(this, () => NoContent());
+    }
+
     [HttpPost("{id:int}/inspect")]
     [ProducesResponseType(StatusCodes.Status202Accepted)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

@@ -14,8 +14,9 @@ public static class ContainerMapper
     public static ContainerSummaryResponse ToSummaryResponse(this ContainerSummaryProjection projection, RiskEngineOptions umbrales)
     {
         var demurrageDeadlineUtc = projection.DeadlineDemurrage?.UtcDateTime;
-        long? hoursToDeadline = demurrageDeadlineUtc.HasValue
-            ? (long)Math.Ceiling((demurrageDeadlineUtc.Value - DateTime.UtcNow).TotalHours)
+        var deadlineActivo = ObtenerDeadlineActivo(projection);
+        long? hoursToDeadline = deadlineActivo.HasValue
+            ? (long)Math.Ceiling((deadlineActivo.Value.UtcDateTime - DateTime.UtcNow).TotalHours)
             : null;
 
         return new(
@@ -49,6 +50,21 @@ public static class ContainerMapper
                 ? new TerminalDto(projection.IdTerminalLlegada.Value, projection.TerminalLlegadaNombre ?? "N/A")
                 : null
         );
+    }
+
+    private static DateTimeOffset? ObtenerDeadlineActivo(ContainerSummaryProjection projection)
+    {
+        if (projection.Estado == EstadoDevueltoVacio)
+        {
+            return null;
+        }
+
+        if (projection.FechaRetiroContainer is not null)
+        {
+            return projection.DeadlineDetention;
+        }
+
+        return projection.FechaArriboReal is not null ? projection.DeadlineDemurrage : null;
     }
 
     private static string CalcularNivelRiesgoEnVivo(ContainerSummaryProjection projection, RiskEngineOptions umbrales)

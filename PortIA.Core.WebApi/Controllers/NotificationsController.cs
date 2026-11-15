@@ -12,33 +12,36 @@ using PortIA.Core.WebApi.Extensions;
 [Authorize]
 public class NotificationsController(INotificationService notificationService) : ControllerBase
 {
-
     [HttpGet("alertas/mias")]
     [ProducesResponseType(typeof(List<AlertaPendienteResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetMisAlertas(CancellationToken ct)
     {
-        var userId = GetCurrentUserId();
+        if (!TryGetCurrentUserId(out var userId)) return Unauthorized();
+
         var result = await notificationService.GetAlertasPendientesByUsuarioAsync(userId, ct);
         return result.ToActionResult(this, Ok);
     }
 
-
     [HttpGet("{id:int}")]
     [ProducesResponseType(typeof(NotificationDetailResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetNotificationDetail(
         int id,
         [FromQuery] int canalId = 1,
         CancellationToken ct = default)
     {
-        var result = await notificationService.GetNotificationDetailAsync(id, canalId, ct);
+        if (!TryGetCurrentUserId(out var userId)) return Unauthorized();
+
+        var result = await notificationService.GetNotificationDetailAsync(id, userId, canalId, ct);
         return result.ToActionResult(this, Ok);
     }
-
 
     [HttpPost("{id:int}/send")]
     [ProducesResponseType(typeof(SendNotificationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Send(
@@ -46,14 +49,33 @@ public class NotificationsController(INotificationService notificationService) :
         [FromBody] SendNotificationRequest request,
         CancellationToken ct)
     {
-        var userId = GetCurrentUserId();
+        if (!TryGetCurrentUserId(out var userId)) return Unauthorized();
+
         var result = await notificationService.SendAsync(id, userId, request, ct);
         return result.ToActionResult(this, Ok);
     }
 
-    private int GetCurrentUserId()
+    [HttpPost("{id:int}/reject")]
+    [ProducesResponseType(typeof(SendNotificationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Reject(
+        int id,
+        [FromBody] RejectNotificationRequest request,
+        CancellationToken ct)
     {
-        var userIdClaim = User?.FindFirst(ClaimTypes.NameIdentifier) ?? User?.FindFirst("sub");
-        return userIdClaim is not null && int.TryParse(userIdClaim.Value, out var userId) ? userId : 1;
+        if (!TryGetCurrentUserId(out var userId)) return Unauthorized();
+
+        var result = await notificationService.RejectAsync(id, userId, request, ct);
+        return result.ToActionResult(this, Ok);
+    }
+
+    private bool TryGetCurrentUserId(out int userId)
+    {
+        var claim = User?.FindFirst(ClaimTypes.NameIdentifier) ?? User?.FindFirst("sub");
+        userId = 0;
+        return claim is not null && int.TryParse(claim.Value, out userId) && userId > 0;
     }
 }

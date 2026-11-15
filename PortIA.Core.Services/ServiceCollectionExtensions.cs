@@ -13,6 +13,8 @@ using PortIA.Core.Services.Component.Mensajeria.Publishers;
 using PortIA.Core.Services.Component.Mensajeria.Publishers.Interfaces;
 using PortIA.Core.Services.Component.Navieras.Interfaces;
 using PortIA.Core.Services.Component.Navieras.Services;
+using PortIA.Core.Services.Component.Admin.Interfaces;
+using PortIA.Core.Services.Component.Admin.Services;
 using PortIA.Core.Services.Component.Notifications.Interfaces;
 using PortIA.Core.Services.Component.Notifications.Services;
 using PortIA.Core.Services.Component.Riesgo.BackgroundServices;
@@ -52,6 +54,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITeamDashboardService, TeamDashboardService>();
         services.AddScoped<ITeamDocumentsService, TeamDocumentsService>();
         services.AddScoped<IAuditService, AuditService>();
+        services.AddScoped<IAuditTrail, AuditTrail>();
+        services.AddScoped<ISystemHealthService, SystemHealthService>();
 
         // Componente Notifications
         services.AddScoped<ITelegramSender, TelegramSender>();

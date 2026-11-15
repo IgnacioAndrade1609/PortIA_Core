@@ -4,6 +4,8 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PortIA.Core.Services.Common.Results;
+using PortIA.Core.Services.Component.Audit.Interfaces;
+using PortIA.Core.Services.Component.Audit.Services;
 using PortIA.Core.Services.Component.Users.DTOs;
 using PortIA.Core.Services.Component.Users.Interfaces;
 using PortIA.Core.WebApi.Extensions;
@@ -12,7 +14,7 @@ using PortIA.Core.Services.Common.DTOs;
 [ApiController]
 [Route("api/v1/users")]
 //[Authorize(Roles = "Admin")] //quitar este comentario para activar la autorizacion con jwt
-public class UsersController(IUsuarioService usuarioService) : ControllerBase
+public class UsersController(IUsuarioService usuarioService, IAuditTrail auditTrail) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<UserDto>), StatusCodes.Status200OK)]
@@ -44,6 +46,11 @@ public class UsersController(IUsuarioService usuarioService) : ControllerBase
     public async Task<IActionResult> Create(CreateUsuarioRequest request, CancellationToken ct)
     {
         var result = await usuarioService.CreateAsync(request, ct);
+        if (result.IsSuccess)
+        {
+            await auditTrail.RecordAsync("Usuario", result.Value.Id, "CREAR", ActorId(), null, Snapshot(result.Value), ct);
+        }
+
         return result.ToActionResult(this, response => Created($"/api/v1/users/{response.Id}", response));
     }
 
@@ -56,7 +63,9 @@ public class UsersController(IUsuarioService usuarioService) : ControllerBase
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Update(int id, UpdateUsuarioRequest request, CancellationToken ct)
     {
+        var antes = await usuarioService.GetByIdAsync(id, ct);
         var result = await usuarioService.UpdateAsync(id, request, ct);
+        await AuditarCambioAsync(id, antes, result, ct);
         return result.ToActionResult(this, Ok);
     }
 
@@ -69,7 +78,9 @@ public class UsersController(IUsuarioService usuarioService) : ControllerBase
     public async Task<IActionResult> UpdateStatus(int id, UpdateUsuarioStatusRequest request, CancellationToken ct)
     {
         var currentUserId = GetCurrentUserId();
+        var antes = await usuarioService.GetByIdAsync(id, ct);
         var result = await usuarioService.UpdateStatusAsync(id, request, currentUserId, ct);
+        await AuditarCambioAsync(id, antes, result, ct);
         return result.ToActionResult(this, Ok);
     }
 
@@ -83,7 +94,9 @@ public class UsersController(IUsuarioService usuarioService) : ControllerBase
     public async Task<IActionResult> UpdateRole(int id, UpdateUsuarioRoleRequest request, CancellationToken ct)
     {
         var currentUserId = GetCurrentUserId();
+        var antes = await usuarioService.GetByIdAsync(id, ct);
         var result = await usuarioService.UpdateRoleAsync(id, request, currentUserId, ct);
+        await AuditarCambioAsync(id, antes, result, ct);
         return result.ToActionResult(this, Ok);
     }
 
@@ -96,9 +109,30 @@ public class UsersController(IUsuarioService usuarioService) : ControllerBase
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> UpdateSupervisor(int id, UpdateUsuarioSupervisorRequest request, CancellationToken ct)
     {
+        var antes = await usuarioService.GetByIdAsync(id, ct);
         var result = await usuarioService.UpdateSupervisorAsync(id, request, ct);
+        await AuditarCambioAsync(id, antes, result, ct);
         return result.ToActionResult(this, Ok);
     }
+
+    private async Task AuditarCambioAsync(int id, Result<UserDto> antes, Result<UserDto> despues, CancellationToken ct)
+    {
+        if (!despues.IsSuccess) return;
+
+        await auditTrail.RecordAsync(
+            "Usuario", id, "ACTUALIZAR", ActorId(),
+            antes.IsSuccess ? Snapshot(antes.Value) : null,
+            Snapshot(despues.Value), ct);
+    }
+
+    private int? ActorId()
+    {
+        var id = GetCurrentUserId();
+        return id > 0 ? id : null;
+    }
+
+    private static object Snapshot(UserDto u) =>
+        AuditSnapshots.Usuario(u.Name, u.Email, u.Role.Name, u.Active, u.Supervisor?.Name);
 
     private int GetCurrentUserId()
     {

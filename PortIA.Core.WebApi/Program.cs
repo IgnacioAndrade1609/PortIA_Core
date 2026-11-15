@@ -2,6 +2,7 @@ using Microsoft.OpenApi;
 using PortIA.Core.DependencyInjection;
 using PortIA.Core.Infrastructure.Data;
 using PortIA.Core.Services.Component.Alerts.Interfaces;
+using PortIA.Core.Services.Component.Notifications.Services;
 using PortIA.Core.WebApi.ErrorHandling;
 using PortIA.Core.WebApi.Hubs;
 using PortIA.Core.WebApi.Realtime;
@@ -14,7 +15,9 @@ builder.Services.AddAll(builder.Configuration);
 builder.Services.AddControllers();
 builder.Services.AddHealthChecks();
 builder.Services.AddSignalR();
-builder.Services.AddScoped<IAlertNotifier, SignalRAlertNotifier>();
+builder.Services.AddScoped<SignalRAlertNotifier>();
+builder.Services.AddScoped<AlertEmailNotifier>();
+builder.Services.AddScoped<IAlertNotifier, CompositeAlertNotifier>();
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();

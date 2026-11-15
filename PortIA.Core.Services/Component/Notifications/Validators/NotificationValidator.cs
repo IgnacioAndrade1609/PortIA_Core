@@ -24,3 +24,16 @@ public class SendNotificationRequestValidator : AbstractValidator<SendNotificati
         });
     }
 }
+
+public class RejectNotificationRequestValidator : AbstractValidator<RejectNotificationRequest>
+{
+    public RejectNotificationRequestValidator()
+    {
+        RuleFor(x => x.CanalId)
+            .Must(id => id is 1 or 2)
+            .WithMessage("El canal debe ser 1 (EMAIL) o 2 (TELEGRAM).");
+
+        RuleFor(x => x.Motivo)
+            .MaximumLength(500).WithMessage("El motivo supera el máximo de 500 caracteres.");
+    }
+}

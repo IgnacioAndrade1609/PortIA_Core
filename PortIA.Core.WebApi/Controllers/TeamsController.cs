@@ -14,6 +14,38 @@ public class TeamsController(
     ITeamDashboardService teamDashboardService,
     ITeamDocumentsService teamDocumentsService) : ControllerBase
 {
+    [HttpGet("all/dashboard")]
+    [ProducesResponseType(typeof(TeamDashboardResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetAllDashboard([FromQuery] TeamDashboardFilter filter, CancellationToken ct)
+    {
+        var role = GetStrictRole();
+        if (role is null) return Unauthorized();
+        if (!role.Equals("Admin", StringComparison.OrdinalIgnoreCase)) return Forbid();
+
+        var result = await teamDashboardService.GetAllDashboardAsync(role, filter, ct);
+
+        return result.ToActionResult(this, Ok);
+    }
+
+    [HttpGet("all/documents")]
+    [ProducesResponseType(typeof(List<AnalystDocumentResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetAllDocuments([FromQuery] TeamDocumentsFilter filter, CancellationToken ct)
+    {
+        var role = GetStrictRole();
+        if (role is null) return Unauthorized();
+        if (!role.Equals("Admin", StringComparison.OrdinalIgnoreCase)) return Forbid();
+
+        var result = await teamDocumentsService.GetAllDocumentsAsync(role, filter, ct);
+
+        return result.ToActionResult(this, Ok);
+    }
+
     [HttpGet("{jefeId:int}/dashboard")]
     [ProducesResponseType(typeof(TeamDashboardResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -45,6 +77,8 @@ public class TeamsController(
 
         return result.ToActionResult(this, Ok);
     }
+
+    private string? GetStrictRole() => (User?.FindFirst(ClaimTypes.Role) ?? User?.FindFirst("role"))?.Value;
 
     private int GetCurrentUserId()
     {
