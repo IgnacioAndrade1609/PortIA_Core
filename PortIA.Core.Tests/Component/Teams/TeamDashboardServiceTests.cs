@@ -219,4 +219,44 @@ public class TeamDashboardServiceTests
         Assert.Equal(2, result.Value.DocumentsByPeriod.Last().Count);
         Assert.Equal(0, result.Value.DocumentsByPeriod.First().Count);
     }
+
+    [Fact]
+    public async Task GetAllDashboardAsync_ByNonAdmin_ReturnsUnauthorized()
+    {
+        var result = await _sut.GetAllDashboardAsync("Jefe", new TeamDashboardFilter(), CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Unauthorized, result.Status);
+    }
+
+    [Fact]
+    public async Task GetAllDashboardAsync_ByAdmin_AggregatesContainersOfAllTeamsAndIgnoresUnassigned()
+    {
+        Container Build(int id, int? jefeId, string riesgo) => new()
+        {
+            Id = id,
+            Vigente = true,
+            Riesgo = new Riesgo { Descripcion = riesgo },
+            Asignado = jefeId.HasValue ? new Usuario { Id = 100 + id, JefeId = jefeId } : null
+        };
+
+        var containers = new List<Container>
+        {
+            Build(1, 2, "OK"),
+            Build(2, 2, "WARNING"),
+            Build(3, 3, "WARNING"),
+            Build(4, 3, "OVERDUE"),
+            Build(5, null, "OVERDUE")
+        }.BuildMockDbSet();
+        _containerRepository.Query().Returns(containers);
+        _usuarioRepository.GetPagedAsync(null, null, null, null, 1, 1000, Arg.Any<CancellationToken>())
+            .Returns((new List<Usuario>(), 0L));
+
+        var result = await _sut.GetAllDashboardAsync("Admin", new TeamDashboardFilter(), CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Success, result.Status);
+        var porRiesgo = result.Value!.ContainersByRisk.ToDictionary(r => r.RiskLevel, r => r.Count);
+        Assert.Equal(1, porRiesgo["OK"]);
+        Assert.Equal(2, porRiesgo["WARNING"]);
+        Assert.Equal(1, porRiesgo["OVERDUE"]);
+    }
 }

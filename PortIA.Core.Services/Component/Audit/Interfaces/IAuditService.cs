@@ -8,4 +8,7 @@ public interface IAuditService
 {
     Task<Result<PagedResult<AuditLogResponse>>> GetPagedAsync(
         AuditQueryFilter filter, int callerUserId, string callerRole, CancellationToken ct);
+
+    Task<Result<AuditSummaryResponse>> GetSummaryAsync(
+        AuditQueryFilter filter, int callerUserId, string callerRole, CancellationToken ct);
 }

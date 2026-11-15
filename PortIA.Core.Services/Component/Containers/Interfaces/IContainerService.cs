@@ -34,4 +34,6 @@ public interface IContainerService
     Task<Result> UpdateDiasLibresAsync(int containerId, int userId, int diasLibresDemurrage, int diasLibresDetention, CancellationToken ct);
 
     Task<Result> UpdateDatosExtraidosAsync(int containerId, int userId, UpdateContainerMetadataRequest request, CancellationToken ct);
+
+    Task<Result> AssignAsync(int containerId, int assignedTo, int userId, string userRole, CancellationToken ct);
 }

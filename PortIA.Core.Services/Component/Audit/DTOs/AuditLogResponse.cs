@@ -9,5 +9,8 @@ public record AuditLogResponse(
     int? ResponsableId,
     string? ResponsableNombre,
     string? ValoresAnteriores,
-    string? ValoresNuevos
+    string? ValoresNuevos,
+    int? ContenedorId = null,
+    string? ContenedorNumero = null,
+    string? Sensibilidad = null
 );

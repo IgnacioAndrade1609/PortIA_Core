@@ -7,4 +7,7 @@ public interface ITeamDocumentsService
 {
     Task<Result<List<AnalystDocumentResponse>>> GetDocumentsAsync(
         int jefeId, int callerUserId, string callerRole, TeamDocumentsFilter filter, CancellationToken ct);
+
+    Task<Result<List<AnalystDocumentResponse>>> GetAllDocumentsAsync(
+        string callerRole, TeamDocumentsFilter filter, CancellationToken ct);
 }

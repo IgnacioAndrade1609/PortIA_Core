@@ -42,12 +42,30 @@ public class TeamDashboardService(
         if (!jefe.Rol.NombreRol.Equals("Jefe", StringComparison.OrdinalIgnoreCase))
             return Result<TeamDashboardResponse>.BusinessError("El usuario indicado no tiene rol Jefe.");
 
+        return await BuildDashboardAsync(effectiveJefeId, filter, ct);
+    }
+
+    public async Task<Result<TeamDashboardResponse>> GetAllDashboardAsync(
+        string callerRole, TeamDashboardFilter filter, CancellationToken ct)
+    {
+        if (!callerRole.Equals("Admin", StringComparison.OrdinalIgnoreCase))
+            return Result<TeamDashboardResponse>.Unauthorized("Solo un administrador puede ver el dashboard de todos los equipos.");
+
+        var validation = await validator.ValidateAsync(filter, ct);
+        if (!validation.IsValid)
+            return Result<TeamDashboardResponse>.ValidationError(validation.ToDictionary());
+
+        return await BuildDashboardAsync(null, filter, ct);
+    }
+
+    private async Task<Result<TeamDashboardResponse>> BuildDashboardAsync(int? jefeId, TeamDashboardFilter filter, CancellationToken ct)
+    {
         var toDate = filter.ToDate ?? DateTimeOffset.UtcNow;
         var fromDate = filter.FromDate ?? toDate.AddDays(-30);
 
-        var containersByRisk = await GetContainersByRiskAsync(effectiveJefeId, ct);
-        var (alertsByAnalyst, avgReaction) = await GetAlertMetricsAsync(effectiveJefeId, fromDate, toDate, ct);
-        var documentsByPeriod = await GetDocumentsByPeriodAsync(effectiveJefeId, fromDate, toDate, ct);
+        var containersByRisk = await GetContainersByRiskAsync(jefeId, ct);
+        var (alertsByAnalyst, avgReaction) = await GetAlertMetricsAsync(jefeId, fromDate, toDate, ct);
+        var documentsByPeriod = await GetDocumentsByPeriodAsync(jefeId, fromDate, toDate, ct);
 
         var response = new TeamDashboardResponse(
             fromDate, toDate, containersByRisk, alertsByAnalyst, avgReaction, documentsByPeriod);
@@ -55,10 +73,10 @@ public class TeamDashboardService(
         return Result<TeamDashboardResponse>.Success(response);
     }
 
-    private async Task<List<ContainersByRiskDto>> GetContainersByRiskAsync(int jefeId, CancellationToken ct)
+    private async Task<List<ContainersByRiskDto>> GetContainersByRiskAsync(int? jefeId, CancellationToken ct)
     {
         var counts = await unitOfWork.Containers.Query()
-            .Where(c => c.Vigente && c.Asignado != null && c.Asignado.JefeId == jefeId)
+            .Where(c => c.Vigente && c.Asignado != null && (jefeId == null ? c.Asignado.JefeId != null : c.Asignado.JefeId == jefeId))
             .GroupBy(c => c.Riesgo != null ? c.Riesgo.Descripcion : "OK")
             .Select(g => new { RiskLevel = g.Key, Count = g.Count() })
             .ToListAsync(ct);
@@ -71,13 +89,13 @@ public class TeamDashboardService(
     }
 
     private async Task<(List<AlertsByAnalystDto> AlertsByAnalyst, double? AvgReactionMinutes)> GetAlertMetricsAsync(
-        int jefeId, DateTimeOffset fromDate, DateTimeOffset toDate, CancellationToken ct)
+        int? jefeId, DateTimeOffset fromDate, DateTimeOffset toDate, CancellationToken ct)
     {
         var (analistas, _) = await unitOfWork.Usuarios.GetPagedAsync(
             search: null, roleId: null, jefeId: jefeId, active: null, page: 1, pageSize: 1000, ct);
 
         var alertasEnPeriodo = await unitOfWork.Alertas.Query()
-            .Where(a => a.Container.Asignado != null && a.Container.Asignado.JefeId == jefeId
+            .Where(a => a.Container.Asignado != null && (jefeId == null ? a.Container.Asignado.JefeId != null : a.Container.Asignado.JefeId == jefeId)
                         && a.CreateAt >= fromDate && a.CreateAt <= toDate)
             .Select(a => new
             {
@@ -94,6 +112,7 @@ public class TeamDashboardService(
             .ToDictionary(g => g.Key, g => (Generated: g.Count(), Managed: g.Count(x => x.Leida)));
 
         var alertsByAnalyst = analistas
+            .Where(an => jefeId != null || an.JefeId != null)
             .Select(an =>
             {
                 var stats = statsByAnalyst.GetValueOrDefault(an.Id, (Generated: 0, Managed: 0));
@@ -113,10 +132,10 @@ public class TeamDashboardService(
     }
 
     private async Task<List<DocumentsByDayDto>> GetDocumentsByPeriodAsync(
-        int jefeId, DateTimeOffset fromDate, DateTimeOffset toDate, CancellationToken ct)
+        int? jefeId, DateTimeOffset fromDate, DateTimeOffset toDate, CancellationToken ct)
     {
         var raw = await unitOfWork.CargasDocumentos.Query()
-            .Where(cd => cd.Vigente && cd.Usuario.JefeId == jefeId
+            .Where(cd => cd.Vigente && (jefeId == null ? cd.Usuario.JefeId != null : cd.Usuario.JefeId == jefeId)
                          && cd.CreacionFecha >= fromDate && cd.CreacionFecha <= toDate)
             .Select(cd => cd.CreacionFecha)
             .ToListAsync(ct);

@@ -1,5 +1,6 @@
 namespace PortIA.Core.Services.Component.Notifications.Services;
 
+using System.Text.Json;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -15,22 +16,26 @@ public class NotificationService(
     IEmailSender emailSender,
     ITelegramSender telegramSender,
     IValidator<SendNotificationRequest> sendValidator,
+    IValidator<RejectNotificationRequest> rejectValidator,
     ILogger<NotificationService> logger) : INotificationService
 {
-    private const int RiesgoCriticoId = 3;
+    private const string RiesgoOk = "OK";
     private const int CanalEmail = 1;
     private const int CanalTelegram = 2;
-    private const string EstadoAprobado = "APROBADO";
+    private const string AccionCrear = "CREAR";
+    private const string EntidadNotificacion = "Notificacion";
 
     public async Task<Result<List<AlertaPendienteResponse>>> GetAlertasPendientesByUsuarioAsync(int usuarioId, CancellationToken ct)
     {
         var alertas = await unitOfWork.Alertas.Query()
             .Include(a => a.Container)
                 .ThenInclude(c => c.Naviera)
+            .Include(a => a.Container)
+                .ThenInclude(c => c.Asignado)
             .Include(a => a.TipoAlerta)
             .Include(a => a.Riesgo)
             .Include(a => a.LogsNotificacion)
-            .Where(a => a.Container.AsignadoA == usuarioId && a.IdRiesgo == RiesgoCriticoId)
+            .Where(a => a.Container.AsignadoA == usuarioId && a.Riesgo.Descripcion != RiesgoOk)
             .OrderByDescending(a => a.CreateAt)
             .ToListAsync(ct);
 
@@ -39,47 +44,22 @@ public class NotificationService(
         foreach (var alerta in alertas)
         {
             var naviera = alerta.Container?.Naviera;
+            var asunto = NotificationTemplates.AsuntoNaviera(BuildContext(alerta));
 
-            // Canal EMAIL (1)
-            var emailAprobado = alerta.LogsNotificacion.Any(l =>
-                l.IdCanal == CanalEmail &&
-                l.Estado.Equals(EstadoAprobado, StringComparison.OrdinalIgnoreCase) &&
-                l.AprobadoPor != null);
-
-            if (!emailAprobado)
+            foreach (var canalId in new[] { CanalEmail, CanalTelegram })
             {
+                if (EstaResuelta(alerta, canalId)) continue;
+
                 pendientes.Add(new AlertaPendienteResponse(
                     AlertaId: alerta.Id,
                     ContainerId: alerta.IdContainer,
                     NumeroContainer: alerta.Container?.NumeroContainer ?? string.Empty,
-                    CanalId: CanalEmail,
-                    Canal: "EMAIL",
+                    CanalId: canalId,
+                    Canal: canalId == CanalEmail ? "EMAIL" : "TELEGRAM",
                     TipoAlerta: alerta.TipoAlerta?.Descripcion ?? "DEMURRAGE",
-                    NivelRiesgo: alerta.Riesgo?.Descripcion ?? "CRITICAL",
-                    Asunto: alerta.Mensaje,
-                    Destinatario: naviera?.Email ?? string.Empty,
-                    FechaAlerta: alerta.CreateAt
-                ));
-            }
-
-            //  Canal TELEGRAM (2)
-            var telegramAprobado = alerta.LogsNotificacion.Any(l =>
-                l.IdCanal == CanalTelegram &&
-                l.Estado.Equals(EstadoAprobado, StringComparison.OrdinalIgnoreCase) &&
-                l.AprobadoPor != null);
-
-            if (!telegramAprobado)
-            {
-                pendientes.Add(new AlertaPendienteResponse(
-                    AlertaId: alerta.Id,
-                    ContainerId: alerta.IdContainer,
-                    NumeroContainer: alerta.Container?.NumeroContainer ?? string.Empty,
-                    CanalId: CanalTelegram,
-                    Canal: "TELEGRAM",
-                    TipoAlerta: alerta.TipoAlerta?.Descripcion ?? "DEMURRAGE",
-                    NivelRiesgo: alerta.Riesgo?.Descripcion ?? "CRITICAL",
-                    Asunto: alerta.Mensaje,
-                    Destinatario: naviera?.Telefono ?? string.Empty,
+                    NivelRiesgo: alerta.Riesgo?.Descripcion ?? "WARNING",
+                    Asunto: asunto,
+                    Destinatario: DestinatarioPorDefecto(naviera, canalId) ?? string.Empty,
                     FechaAlerta: alerta.CreateAt
                 ));
             }
@@ -88,52 +68,27 @@ public class NotificationService(
         return Result<List<AlertaPendienteResponse>>.Success(pendientes);
     }
 
-    public async Task<Result<NotificationDetailResponse>> GetNotificationDetailAsync(int alertaId, int canalId, CancellationToken ct)
+    public async Task<Result<NotificationDetailResponse>> GetNotificationDetailAsync(int alertaId, int usuarioId, int canalId, CancellationToken ct)
     {
-        var alerta = await unitOfWork.Alertas.Query()
-            .Include(a => a.Container)
-                .ThenInclude(c => c.Naviera)
-            .Include(a => a.TipoAlerta)
-            .Include(a => a.Riesgo)
-            .FirstOrDefaultAsync(a => a.Id == alertaId, ct);
+        var alerta = await CargarAlertaAsync(alertaId, usuarioId, ct);
 
         if (alerta is null)
         {
-            return Result<NotificationDetailResponse>.NotFound($"No se encontró la alerta con ID {alertaId}.");
+            return Result<NotificationDetailResponse>.NotFound($"La alerta {alertaId} no existe o no pertenece al usuario.");
         }
 
-        var naviera = alerta.Container?.Naviera;
+        var contexto = BuildContext(alerta);
         var esEmail = canalId == CanalEmail;
-
-        var destinatario = esEmail
-            ? naviera?.Email ?? string.Empty
-            : naviera?.Telefono ?? string.Empty;
-
-        var canalNombre = esEmail ? "EMAIL" : "TELEGRAM";
-
-        var mensajeSugerido = esEmail
-            ? NotificationTemplates.Email(
-                alerta.Container?.NumeroContainer ?? string.Empty,
-                alerta.TipoAlerta?.Descripcion ?? "DEMURRAGE",
-                alerta.Riesgo?.Descripcion ?? "CRITICAL",
-                alerta.Mensaje,
-                alerta.CreateAt)
-            : NotificationTemplates.Telegram(
-                alerta.Container?.NumeroContainer ?? string.Empty,
-                alerta.TipoAlerta?.Descripcion ?? "DEMURRAGE",
-                alerta.Riesgo?.Descripcion ?? "CRITICAL",
-                alerta.Mensaje,
-                alerta.CreateAt);
 
         var response = new NotificationDetailResponse(
             AlertaId: alerta.Id,
             ContainerId: alerta.IdContainer,
             Contenedor: alerta.Container?.NumeroContainer ?? string.Empty,
             TipoCanal: canalId,
-            NombreCanal: canalNombre,
-            Asunto: alerta.Mensaje,
-            Destinatario: destinatario,
-            Mensaje: mensajeSugerido
+            NombreCanal: esEmail ? "EMAIL" : "TELEGRAM",
+            Asunto: NotificationTemplates.AsuntoNaviera(contexto),
+            Destinatario: DestinatarioPorDefecto(alerta.Container?.Naviera, canalId) ?? string.Empty,
+            Mensaje: esEmail ? NotificationTemplates.EmailNaviera(contexto) : NotificationTemplates.TelegramNaviera(contexto)
         );
 
         return Result<NotificationDetailResponse>.Success(response);
@@ -145,32 +100,38 @@ public class NotificationService(
         if (!validation.IsValid)
             return Result<SendNotificationResponse>.ValidationError(validation.ToDictionary());
 
-        var alerta = await unitOfWork.Alertas.Query()
-            .Include(a => a.Container)
-                .ThenInclude(c => c.Naviera)
-            .FirstOrDefaultAsync(a => a.Id == alertaId, ct);
+        var alerta = await CargarAlertaAsync(alertaId, usuarioId, ct);
 
         if (alerta is null)
         {
-            return Result<SendNotificationResponse>.NotFound($"No se encontró la alerta con ID {alertaId}.");
+            return Result<SendNotificationResponse>.NotFound($"La alerta {alertaId} no existe o no pertenece al usuario.");
         }
 
-        var naviera = alerta.Container?.Naviera;
+        var canalNombre = request.CanalId == CanalEmail ? "EMAIL" : "TELEGRAM";
+
+        if (EstaResuelta(alerta, request.CanalId))
+        {
+            return Result<SendNotificationResponse>.BusinessError(
+                $"El mensaje por {canalNombre} de esta alerta ya fue enviado o rechazado.");
+        }
 
         var destinatario = !string.IsNullOrWhiteSpace(request.Destinatario)
-            ? request.Destinatario
-            : (request.CanalId == CanalEmail ? naviera?.Email : naviera?.Telefono);
+            ? request.Destinatario.Trim()
+            : DestinatarioPorDefecto(alerta.Container?.Naviera, request.CanalId);
 
         if (string.IsNullOrWhiteSpace(destinatario))
         {
             return Result<SendNotificationResponse>.BusinessError(
-                $"No se encontró un destinatario válido para el canal {(request.CanalId == CanalEmail ? "EMAIL" : "TELEGRAM")}.");
+                $"No se encontró un destinatario válido para el canal {canalNombre}.");
         }
 
         var asunto = !string.IsNullOrWhiteSpace(request.Asunto)
             ? request.Asunto
-            : alerta.Mensaje;
+            : NotificationTemplates.AsuntoNaviera(BuildContext(alerta));
 
+        var aprobador = usuarioId;
+
+        string? errorEnvio = null;
         try
         {
             if (request.CanalId == CanalEmail)
@@ -184,38 +145,162 @@ public class NotificationService(
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Fallo al despachar notificación externa al proveedor (Canal {CanalId}, Destinatario {Destinatario}). Se procede a registrar la aprobación en BD.", request.CanalId, destinatario);
+            errorEnvio = ex.Message;
+            logger.LogWarning(ex,
+                "Fallo el envío por {Canal} (alertaId={AlertaId}, destinatario={Destinatario}). Se registra como FALLIDO y la alerta sigue pendiente.",
+                canalNombre, alertaId, destinatario);
         }
 
-        var aprobadorFinal = usuarioId > 0 ? usuarioId : (alerta.Container?.AsignadoA ?? 1);
+        var estado = errorEnvio is null ? NotificationStates.Enviado : NotificationStates.Fallido;
+        var log = await RegistrarLogAsync(alertaId, request.CanalId, destinatario, estado, aprobador, ct);
 
-        var nuevoLog = new LogNotificacion
+        await RegistrarAuditoriaAsync(log, aprobador, new
+        {
+            log.Estado,
+            Canal = canalNombre,
+            log.Destinatario,
+            Asunto = asunto,
+            Error = errorEnvio
+        }, ct);
+
+        if (errorEnvio is not null)
+        {
+            return Result<SendNotificationResponse>.BusinessError(
+                $"No se pudo enviar el mensaje por {canalNombre} a {destinatario}. Revisa el destinatario e inténtalo de nuevo.");
+        }
+
+        logger.LogInformation(
+            "Notificación enviada (alertaId={AlertaId}, canal={CanalId}, logId={LogId}, aprobadoPor={UserId})",
+            alertaId, request.CanalId, log.Id, aprobador);
+
+        return Result<SendNotificationResponse>.Success(ToResponse(log, canalNombre));
+    }
+
+    public async Task<Result<SendNotificationResponse>> RejectAsync(int alertaId, int usuarioId, RejectNotificationRequest request, CancellationToken ct)
+    {
+        var validation = await rejectValidator.ValidateAsync(request, ct);
+        if (!validation.IsValid)
+            return Result<SendNotificationResponse>.ValidationError(validation.ToDictionary());
+
+        var alerta = await CargarAlertaAsync(alertaId, usuarioId, ct);
+
+        if (alerta is null)
+        {
+            return Result<SendNotificationResponse>.NotFound($"La alerta {alertaId} no existe o no pertenece al usuario.");
+        }
+
+        var canalNombre = request.CanalId == CanalEmail ? "EMAIL" : "TELEGRAM";
+
+        if (EstaResuelta(alerta, request.CanalId))
+        {
+            return Result<SendNotificationResponse>.BusinessError(
+                $"El mensaje por {canalNombre} de esta alerta ya fue enviado o rechazado.");
+        }
+
+        var destinatario = DestinatarioPorDefecto(alerta.Container?.Naviera, request.CanalId) ?? "Sin destinatario";
+        var aprobador = usuarioId;
+
+        var log = await RegistrarLogAsync(alertaId, request.CanalId, destinatario, NotificationStates.Rechazado, aprobador, ct);
+
+        await RegistrarAuditoriaAsync(log, aprobador, new
+        {
+            log.Estado,
+            Canal = canalNombre,
+            log.Destinatario,
+            request.Motivo
+        }, ct);
+
+        logger.LogInformation(
+            "Notificación rechazada (alertaId={AlertaId}, canal={CanalId}, logId={LogId}, rechazadoPor={UserId})",
+            alertaId, request.CanalId, log.Id, aprobador);
+
+        return Result<SendNotificationResponse>.Success(ToResponse(log, canalNombre));
+    }
+
+    private Task<Alerta?> CargarAlertaAsync(int alertaId, int usuarioId, CancellationToken ct) =>
+        unitOfWork.Alertas.Query()
+            .Include(a => a.Container)
+                .ThenInclude(c => c.Naviera)
+            .Include(a => a.Container)
+                .ThenInclude(c => c.Asignado)
+            .Include(a => a.TipoAlerta)
+            .Include(a => a.Riesgo)
+            .Include(a => a.LogsNotificacion)
+            .FirstOrDefaultAsync(a => a.Id == alertaId && a.Container.AsignadoA == usuarioId, ct);
+
+    private static bool EstaResuelta(Alerta alerta, int canalId) =>
+        alerta.LogsNotificacion.Any(l =>
+            l.IdCanal == canalId &&
+            NotificationStates.Resueltos.Contains(l.Estado, StringComparer.OrdinalIgnoreCase));
+
+    private static string? DestinatarioPorDefecto(Naviera? naviera, int canalId) =>
+        canalId == CanalEmail ? naviera?.Email : naviera?.Telefono;
+
+    private static NotificationContext BuildContext(Alerta alerta)
+    {
+        var container = alerta.Container;
+        var tipo = alerta.TipoAlerta?.Descripcion ?? "DEMURRAGE";
+        var deadline = tipo == "DETENTION" ? container?.DeadlineDetention : container?.DeadlineDemurrage;
+
+        return new NotificationContext(
+            NumeroContainer: container?.NumeroContainer ?? string.Empty,
+            TipoAlerta: tipo,
+            NivelRiesgo: alerta.Riesgo?.Descripcion ?? "WARNING",
+            MensajeAlerta: alerta.Mensaje,
+            FechaAlerta: alerta.CreateAt,
+            NombreNaviera: container?.Naviera?.NombreNaviera,
+            NumeroBl: container?.NumeroBl,
+            PuertoDestino: container?.PuertoDestino,
+            DeadlineActivo: deadline,
+            NombreAnalista: container?.Asignado?.NombreUsuario);
+    }
+
+    private async Task<LogNotificacion> RegistrarLogAsync(
+        int alertaId, int canalId, string destinatario, string estado, int usuarioId, CancellationToken ct)
+    {
+        var log = new LogNotificacion
         {
             IdAlerta = alertaId,
-            IdCanal = request.CanalId,
+            IdCanal = canalId,
             Destinatario = destinatario,
-            Estado = EstadoAprobado,
-            AprobadoPor = aprobadorFinal,
+            Estado = estado,
+            AprobadoPor = usuarioId,
             CreateAt = DateTimeOffset.UtcNow
         };
 
-        await unitOfWork.LogsNotificacion.AddAsync(nuevoLog, ct);
+        await unitOfWork.LogsNotificacion.AddAsync(log, ct);
         await unitOfWork.SaveChangesAsync(ct);
-
-        logger.LogInformation("Notificación enviada y aprobada en BD (alertaId={AlertaId}, canal={CanalId}, logId={LogId}, aprobadoPor={UserId})",
-            alertaId, request.CanalId, nuevoLog.Id, aprobadorFinal);
-
-        var response = new SendNotificationResponse(
-            LogId: nuevoLog.Id,
-            AlertaId: alertaId,
-            CanalId: request.CanalId,
-            Canal: request.CanalId == CanalEmail ? "EMAIL" : "TELEGRAM",
-            Destinatario: destinatario,
-            Estado: EstadoAprobado,
-            AprobadoPor: aprobadorFinal,
-            FechaEnvio: DateTimeOffset.UtcNow
-        );
-
-        return Result<SendNotificationResponse>.Success(response);
+        return log;
     }
+
+    private async Task RegistrarAuditoriaAsync(LogNotificacion log, int usuarioId, object valoresNuevos, CancellationToken ct)
+    {
+        var accion = await unitOfWork.Acciones.GetByDescripcionAsync(AccionCrear, ct);
+        if (accion is null)
+        {
+            logger.LogWarning("No se encontró la acción '{Accion}', no se registra auditoría de la notificación {LogId}", AccionCrear, log.Id);
+            return;
+        }
+
+        await unitOfWork.LogsAuditoria.AddAsync(new LogAuditoria
+        {
+            NombreEntidad = EntidadNotificacion,
+            IdEntidad = log.Id,
+            IdAccion = accion.Id,
+            Responsable = usuarioId,
+            ValoresNuevos = JsonSerializer.Serialize(valoresNuevos)
+        }, ct);
+
+        await unitOfWork.SaveChangesAsync(ct);
+    }
+
+    private static SendNotificationResponse ToResponse(LogNotificacion log, string canalNombre) => new(
+        LogId: log.Id,
+        AlertaId: log.IdAlerta,
+        CanalId: log.IdCanal,
+        Canal: canalNombre,
+        Destinatario: log.Destinatario,
+        Estado: log.Estado,
+        AprobadoPor: log.AprobadoPor ?? 0,
+        FechaEnvio: log.CreateAt);
 }

@@ -26,6 +26,22 @@ public class AuditController(IAuditService auditService) : ControllerBase
         return result.ToActionResult(this, Ok);
     }
 
+    [HttpGet("summary")]
+    [ProducesResponseType(typeof(AuditSummaryResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetSummary([FromQuery] AuditQueryFilter filter, CancellationToken ct)
+    {
+        var roleClaim = User?.FindFirst(ClaimTypes.Role) ?? User?.FindFirst("role");
+        if (roleClaim is null) return Unauthorized();
+        if (!roleClaim.Value.Equals("Admin", StringComparison.OrdinalIgnoreCase)) return Forbid();
+
+        var result = await auditService.GetSummaryAsync(filter, GetCurrentUserId(), roleClaim.Value, ct);
+
+        return result.ToActionResult(this, Ok);
+    }
+
     private int GetCurrentUserId()
     {
         var userIdClaim = User?.FindFirst(ClaimTypes.NameIdentifier) ?? User?.FindFirst("sub");

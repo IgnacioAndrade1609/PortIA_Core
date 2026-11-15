@@ -5,6 +5,9 @@ public class AuditQueryFilter
     public int? ResponsableId { get; set; }
     public string? NombreEntidad { get; set; }
     public string? Accion { get; set; }
+    public string? Origen { get; set; }
+    public string? ContainerNumber { get; set; }
+    public bool SoloSensibles { get; set; }
     public DateTimeOffset? FromDate { get; set; }
     public DateTimeOffset? ToDate { get; set; }
     public int Page { get; set; } = 1;

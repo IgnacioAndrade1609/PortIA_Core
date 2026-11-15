@@ -406,6 +406,65 @@ public class ContainerService(
         return Result.Success();
     }
 
+    public async Task<Result> AssignAsync(int containerId, int assignedTo, int userId, string userRole, CancellationToken ct)
+    {
+        if (!userRole.Equals("Admin", StringComparison.OrdinalIgnoreCase))
+        {
+            return Result.Unauthorized("Solo un administrador puede reasignar contenedores.");
+        }
+
+        var container = await unitOfWork.Containers.GetByIdAsync(containerId, ct);
+        if (container is null || !container.Vigente)
+        {
+            return Result.NotFound($"El contenedor {containerId} no existe.");
+        }
+
+        var destino = await unitOfWork.Usuarios.GetByIdWithRoleAsync(assignedTo, ct);
+        if (destino is null || !destino.Vigente || !destino.Rol.NombreRol.Equals("Analista", StringComparison.OrdinalIgnoreCase))
+        {
+            return Result.BusinessError("El usuario indicado no es un analista activo.");
+        }
+
+        if (container.AsignadoA == destino.Id)
+        {
+            return Result.BusinessError("El contenedor ya está asignado a ese analista.");
+        }
+
+        var anterior = container.Asignado?.NombreUsuario;
+        var ahora = DateTimeOffset.UtcNow;
+
+        container.AsignadoA = destino.Id;
+        container.Asignado = destino;
+        container.UpdateAt = ahora;
+
+        await unitOfWork.Hitos.AddAsync(new Hito
+        {
+            IdContainer = container.Id,
+            Descripcion = $"Contenedor reasignado de {anterior ?? "sin asignar"} a {destino.NombreUsuario} por el administrador.",
+            Origen = "USUARIO",
+            CreadoPor = userId,
+            FechaOcurrencia = ahora,
+        }, ct);
+
+        var accion = await unitOfWork.Acciones.GetByDescripcionAsync(AccionActualizar, ct);
+        if (accion is not null)
+        {
+            await unitOfWork.LogsAuditoria.AddAsync(new LogAuditoria
+            {
+                NombreEntidad = nameof(Container),
+                IdEntidad = container.Id,
+                IdAccion = accion.Id,
+                Responsable = userId,
+                ValoresAnteriores = JsonSerializer.Serialize(new { Asignado = anterior }),
+                ValoresNuevos = JsonSerializer.Serialize(new { Asignado = destino.NombreUsuario }),
+            }, ct);
+        }
+
+        await unitOfWork.SaveChangesAsync(ct);
+
+        return Result.Success();
+    }
+
     private async Task RegistrarAuditoriaAsync(Container container, int userId, string valoresAnteriores, CancellationToken ct)
     {
         var accion = await unitOfWork.Acciones.GetByDescripcionAsync(AccionActualizar, ct);
